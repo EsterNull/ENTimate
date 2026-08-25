@@ -40,8 +40,7 @@ fun ColorPickerDialog(
                     Modifier
                         .fillMaxWidth()
                         .height(48.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(colorInt)),
+                        .background(Color(colorInt), RoundedCornerShape(8.dp)),
                 )
                 Spacer(Modifier.height(12.dp))
                 Text("Оттенок", style = MaterialTheme.typography.labelMedium)
@@ -59,8 +58,7 @@ fun ColorPickerDialog(
                         Box(
                             Modifier
                                 .size(32.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(c))
+                                .background(Color(c), RoundedCornerShape(6.dp))
                                 .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
                                 .clickable {
                                     val (h, s, v) = rgbToHsv(c)

@@ -1,0 +1,6 @@
+HSPLcom/example/entimate/EntimateApplication;->onCreate()V
+HSPLcom/example/entimate/MainActivity;->onCreate(Landroid/os/Bundle;)V
+HSPLcom/example/entimate/MainActivity;->setContent(Lkotlin/jvm/functions/Function0;)V
+HSPLcom/example/entimate/data/local/AppDatabase;->build(Landroid/content/Context;)Lcom/example/entimate/data/local/AppDatabase;
+HSPLcom/example/entimate/data/repository/DocumentRepository;->changesFlow(J)Lkotlinx/coroutines/flow/Flow;
+HSPLcom/example/entimate/ui/navigation/AppNavigationKt;->AppNavigation(Landroidx/navigation/NavHostController;Landroidx/compose/runtime/Composer;I)V

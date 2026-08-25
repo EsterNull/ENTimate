@@ -5,7 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,7 +48,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
         topBar = {
             TopAppBar(
                 title = { Text("Связи с документами") },
-                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.Filled.ArrowBack, contentDescription = "Назад") } },
+                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
             )
         },
     ) { padding ->
@@ -230,7 +230,7 @@ private fun AddLinkDialog(
                     OutlinedTextField(
                         value = documents.firstOrNull { it.id == docId }?.name ?: "Документ",
                         onValueChange = {}, readOnly = true, label = { Text("Документ") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(docExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(docExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                     )
                     ExposedDropdownMenu(expanded = docExpanded, onDismissRequest = { docExpanded = false }) {
                         documents.forEach { d -> DropdownMenuItem(text = { Text(d.name) }, onClick = { docId = d.id; docExpanded = false }) }
@@ -240,7 +240,7 @@ private fun AddLinkDialog(
                     OutlinedTextField(
                         value = if (operation == "INCREASE") "Увеличить" else "Уменьшить",
                         onValueChange = {}, readOnly = true, label = { Text("Действие") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(opExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(opExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                     )
                     ExposedDropdownMenu(expanded = opExpanded, onDismissRequest = { opExpanded = false }) {
                         DropdownMenuItem(text = { Text("Увеличить") }, onClick = { operation = "INCREASE"; opExpanded = false })
@@ -254,7 +254,7 @@ private fun AddLinkDialog(
                         ExposedDropdownMenuBox(expanded = condExpanded, onExpandedChange = { condExpanded = it }, modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = condition, onValueChange = {}, readOnly = true, label = { Text("При значении") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(condExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(condExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                             )
                             ExposedDropdownMenu(expanded = condExpanded, onDismissRequest = { condExpanded = false }) {
                                 conditionOptions.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { condition = o; condExpanded = false }) }

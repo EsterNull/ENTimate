@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
@@ -112,7 +112,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             TopAppBar(
                 title = { Text(if (patientId == 0L) "Новый пациент" else "Редактировать пациента") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.Filled.ArrowBack, contentDescription = "Назад") }
+                    IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
                 },
                 actions = {
                     IconButton(onClick = { save() }) { Icon(Icons.Filled.Check, contentDescription = "Сохранить") }
@@ -225,7 +225,7 @@ private fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean
                         label = { Text(def.label + if (required) " *" else "") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                         isError = error,
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         options.forEach { opt ->
@@ -273,7 +273,7 @@ private fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onVal
                     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = value, onValueChange = {}, readOnly = true, label = { Text("Значение") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                         )
                         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                             options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { onValueChange(o); expanded = false }) }

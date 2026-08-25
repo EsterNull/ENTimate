@@ -10,7 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material3.*
@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
@@ -63,7 +65,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 title = { Text(if (docId == 0L) "Новый документ" else "Редактировать документ") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
                 actions = {
@@ -143,17 +145,19 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = quantity,
-                onValueChange = { quantity = it.stripNewlines() },
+                onValueChange = { quantity = it.filter { ch -> ch.isDigit() }.stripNewlines() },
                 label = { Text("Количество") },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = step,
-                onValueChange = { step = it.stripNewlines() },
+                onValueChange = { step = it.filter { ch -> ch.isDigit() }.stripNewlines() },
                 label = { Text("Шаг изменения (кнопки + / -)") },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
         }

@@ -6,7 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.TableChart
@@ -102,7 +102,7 @@ fun ReportEditScreen(reportId: Long, nav: NavController) {
         topBar = {
             TopAppBar(
                 title = { Text(if (reportId == 0L) "Новый отчёт" else "Редактировать отчёт") },
-                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.Filled.ArrowBack, contentDescription = "Назад") } },
+                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
                 actions = {
                     IconButton(onClick = { saveAnd { id -> nav.navigate("reports/preview/$id/0/${System.currentTimeMillis()}") } }) {
                         Icon(Icons.Filled.TableChart, contentDescription = "Предпросмотр")
@@ -266,7 +266,7 @@ private fun FilterRow(
                 OutlinedTextField(
                     value = ops.firstOrNull { it.first == operator }?.second ?: operator,
                     onValueChange = {}, readOnly = true, label = { Text("Условие") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(opExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(opExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                 )
                 ExposedDropdownMenu(expanded = opExpanded, onDismissRequest = { opExpanded = false }) {
                     ops.forEach { o -> DropdownMenuItem(text = { Text(o.second) }, onClick = { operator = o.first; opExpanded = false }) }
@@ -293,7 +293,7 @@ private fun FilterRow(
                         ExposedDropdownMenuBox(expanded = valExpanded, onExpandedChange = { valExpanded = it }, modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = value, onValueChange = {}, readOnly = true, label = { Text("Значение") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(valExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(valExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                             )
                             ExposedDropdownMenu(expanded = valExpanded, onDismissRequest = { valExpanded = false }) {
                                 options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { value = o; valExpanded = false }) }
@@ -330,7 +330,7 @@ private fun FieldPickerDialog(
                 OutlinedTextField(
                     value = fieldOpts.firstOrNull { it.key == selected }?.label ?: "Выберите поле",
                     onValueChange = {}, readOnly = true, label = { Text("Поле") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                 )
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     fieldOpts.forEach { fo -> DropdownMenuItem(text = { Text(fo.label) }, onClick = { selected = fo.key; expanded = false }) }

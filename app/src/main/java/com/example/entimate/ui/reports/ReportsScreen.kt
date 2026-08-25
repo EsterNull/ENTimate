@@ -204,7 +204,7 @@ private fun ReportCard(
     Card(modifier = Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = onLongClick), colors = CardDefaults.cardColors(containerColor = bg, contentColor = onBg)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.TableChart, contentDescription = null, tint = onBg)
+                Icon(Icons.Filled.TableChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Text(report.report.name.ifBlank { "Без названия" }, style = MaterialTheme.typography.titleMedium, color = onBg)
             }
@@ -217,7 +217,10 @@ private fun ReportCard(
                 Button(
                     onClick = onGenerate,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = onBg, contentColor = bg),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
                 ) { Text("Сформировать") }
             }
         }

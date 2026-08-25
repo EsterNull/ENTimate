@@ -55,22 +55,23 @@ fun ColorRow(color: Int, onColorChange: (Int) -> Unit) {
                     .clickable { onColorChange(c) },
             )
         }
-        IconButton(onClick = { showPicker = true }) {
-            if (isCustom) {
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
-                        .background(Color(color), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Filled.ColorLens,
-                        contentDescription = "Палитра",
-                        tint = if (colorLuminance(Color(color)) > 0.5f) Color.Black else Color.White,
-                    )
-                }
-            } else {
+        if (isCustom) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                    .background(Color(color), RoundedCornerShape(8.dp))
+                    .clickable { showPicker = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.ColorLens,
+                    contentDescription = "Палитра",
+                    tint = if (colorLuminance(Color(color)) > 0.5f) Color.Black else Color.White,
+                )
+            }
+        } else {
+            IconButton(onClick = { showPicker = true }) {
                 Icon(Icons.Filled.ColorLens, contentDescription = "Палитра")
             }
         }

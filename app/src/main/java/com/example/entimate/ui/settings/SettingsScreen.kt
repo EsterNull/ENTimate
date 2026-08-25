@@ -1,7 +1,14 @@
 package com.example.entimate.ui.settings
 
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContract
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -41,7 +48,7 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
     )
 
     val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        CreateBackupDocument()
     ) { uri ->
         if (uri != null) scope.launch {
             try {
@@ -115,7 +122,10 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
 
             Text("Резервное копирование", style = MaterialTheme.typography.titleMedium)
             Button(
-                onClick = { exportLauncher.launch("entimate_backup.json") },
+                onClick = {
+                    val ts = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.getDefault()).format(Date())
+                    exportLauncher.launch("ENTimate-backup-$ts.json")
+                },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Экспорт (сохранить копию)") }
             Button(
@@ -128,9 +138,19 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
 
             HorizontalDivider()
 
+            val versionName = remember {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0)).versionName
+                    } else {
+                        @Suppress("DEPRECATION")
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+                    }
+                } catch (e: Exception) { "" }
+            }
             Text("О приложении", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Приложение ENTimate создано для учёта количества документов.",
+                "ENTimate — приложение для учёта количества документов: карточки документов, пациенты, связи между ними и отчёты. Все данные хранятся локально на устройстве, интернет не требуется.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(4.dp))
@@ -144,6 +164,19 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
                     },
                 )
             }
+            Spacer(Modifier.height(4.dp))
+            Text("Версия: ${versionName ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+private class CreateBackupDocument : ActivityResultContract<String, Uri?>() {
+    override fun createIntent(context: Context, input: String): Intent =
+        Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, input)
+        }
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? = intent?.data
 }

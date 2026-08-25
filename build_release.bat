@@ -35,4 +35,11 @@ if errorlevel 1 (
 )
 
 echo Done: %OUT%
+
+set ADB=%ANDROID_SDK%\platform-tools\adb.exe
+if exist "%ADB%" (
+    echo Installing (reinstall, keeps app data)...
+    "%ADB%" install -r "%OUT%" || echo Install skipped (device not connected?).
+)
+
 endlocal

@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,7 +44,7 @@ fun DocumentStatsScreen(nav: NavController, docId: Long) {
                 title = { Text(doc?.name ?: "Статистика") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
             )
@@ -64,9 +64,10 @@ fun DocumentStatsScreen(nav: NavController, docId: Long) {
                     .padding(padding)
                     .padding(16.dp),
             ) {
-                val qtys = changes.map { it.qtyAfter.toFloat() }
-                val maxQ = qtys.maxOrNull() ?: 0f
-                val axisMax = niceCeil(maxQ)
+                val axisMax = remember(changes) {
+                    val maxQ = changes.maxOfOrNull { it.qtyAfter.toFloat() } ?: 0f
+                    niceCeil(maxQ)
+                }
 
                 var patientNames by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
                 LaunchedEffect(changes) {
@@ -97,11 +98,12 @@ fun DocumentStatsScreen(nav: NavController, docId: Long) {
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Spacer(Modifier.height(8.dp))
+                val orderedForList = remember(changes) { changes.reversed() }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(changes.reversed()) { change ->
+                    items(orderedForList) { change ->
                         ChangeRow(change, patientName = patientNames[change.patientId])
                     }
                 }
