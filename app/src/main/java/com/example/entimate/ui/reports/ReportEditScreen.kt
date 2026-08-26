@@ -3,6 +3,7 @@ package com.example.entimate.ui.reports
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -15,12 +16,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.*
 import com.example.entimate.ui.components.ColorRow
+import com.example.entimate.ui.components.TextKeyboardOptions
+import com.example.entimate.ui.components.TextKeyboardOptionsDone
 import com.example.entimate.ui.stripNewlines
 import com.example.entimate.viewmodel.ReportsViewModel
 import kotlinx.coroutines.launch
@@ -68,6 +73,7 @@ fun ReportEditScreen(reportId: Long, nav: NavController) {
 
     val fieldOpts by remember(customFields) { mutableStateOf(buildFieldOpts(customFields)) }
     val optByKey = remember(fieldOpts) { fieldOpts.associateBy { it.key } }
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
         customFields = repo.patientCustomFields()
@@ -121,10 +127,10 @@ fun ReportEditScreen(reportId: Long, nav: NavController) {
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
         ) {
-            OutlinedTextField(value = name, onValueChange = { name = it.stripNewlines(); nameError = false }, label = { Text("Название") }, isError = nameError, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = name, onValueChange = { name = it.stripNewlines(); nameError = false }, label = { Text("Название") }, isError = nameError, singleLine = true, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth())
             if (nameError) Text("Укажите название и оно не должно повторяться.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.height(12.dp))
-            OutlinedTextField(value = description, onValueChange = { description = it.stripNewlines() }, label = { Text("Описание") }, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp), maxLines = 4)
+            OutlinedTextField(value = description, onValueChange = { description = it.stripNewlines() }, label = { Text("Описание") }, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp), maxLines = 4)
             Spacer(Modifier.height(16.dp))
             Text("Цвет карточки", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(8.dp))
@@ -157,15 +163,18 @@ fun ReportEditScreen(reportId: Long, nav: NavController) {
                                     onValueChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(trueText = v.stripNewlines()) } },
                                     label = { Text("Если отмечено") },
                                     singleLine = true,
+                                    keyboardOptions = TextKeyboardOptions,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                OutlinedTextField(
-                                    value = col.falseText,
-                                    onValueChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(falseText = v.stripNewlines()) } },
-                                    label = { Text("Если не отмечено") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                    OutlinedTextField(
+                        value = col.falseText,
+                        onValueChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(falseText = v.stripNewlines()) } },
+                        label = { Text("Если не отмечено") },
+                        singleLine = true,
+                        keyboardOptions = if (idx == columns.lastIndex) TextKeyboardOptionsDone else TextKeyboardOptions,
+                        keyboardActions = if (idx == columns.lastIndex) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                             }
                         }
                     }
@@ -186,9 +195,12 @@ fun ReportEditScreen(reportId: Long, nav: NavController) {
                         filter = f,
                         showConnector = idx > 0,
                         type = fo?.type ?: "TEXT",
+                        label = fo?.label ?: patientFieldByKey(f.fieldKey)?.label ?: f.fieldKey,
                         options = fo?.let { optList(it) } ?: emptyList(),
                         onConnectorChange = { c -> filters = filters.toMutableList().also { it[idx] = it[idx].copy(connector = c) } },
+                        onValueChange = { v -> filters = filters.toMutableList().also { it[idx] = it[idx].copy(value = v) } },
                         onDelete = { filters = filters.toMutableList().also { it.removeAt(idx) } },
+                        isLast = idx == filters.lastIndex,
                     )
                     Spacer(Modifier.height(8.dp))
                 }
@@ -239,15 +251,19 @@ private fun FilterRow(
     filter: ReportFilterEntity,
     showConnector: Boolean,
     type: String,
+    label: String,
     options: List<String>,
     onConnectorChange: (String) -> Unit,
+    onValueChange: (String) -> Unit,
     onDelete: () -> Unit,
+    isLast: Boolean = false,
 ) {
     var operator by remember(filter.id) { mutableStateOf(filter.operator) }
     var value by remember(filter.id) { mutableStateOf(filter.value) }
     var opExpanded by remember { mutableStateOf(false) }
     var valExpanded by remember { mutableStateOf(false) }
     val ops = operatorOptions(type)
+    val focusManager = LocalFocusManager.current
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
@@ -258,8 +274,6 @@ private fun FilterRow(
                 }
                 Spacer(Modifier.height(6.dp))
             }
-            val label = patientFieldByKey(filter.fieldKey)?.label
-                ?: if (isCustomKey(filter.fieldKey)) "Своё поле" else filter.fieldKey
             Text(label, style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(6.dp))
             ExposedDropdownMenuBox(expanded = opExpanded, onExpandedChange = { opExpanded = it }, modifier = Modifier.fillMaxWidth()) {
@@ -275,16 +289,17 @@ private fun FilterRow(
             Spacer(Modifier.height(6.dp))
             when (type) {
                 "TEXT", "NUMBER" -> OutlinedTextField(
-                    value = value, onValueChange = { value = it.stripNewlines() }, label = { Text(if (type == "NUMBER") "Значение (число)" else "Значение") },
+                    value = value, onValueChange = { v -> value = v.stripNewlines(); onValueChange(v.stripNewlines()) }, label = { Text(if (type == "NUMBER") "Значение (число)" else "Значение") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    keyboardOptions = if (type == "NUMBER") androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number) else androidx.compose.foundation.text.KeyboardOptions.Default,
+                    keyboardOptions = if (type == "NUMBER") androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = if (isLast) ImeAction.Done else ImeAction.Next) else (if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions),
+                    keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
                 )
-                "DATE" -> com.example.entimate.ui.components.DateField(value = value, onValueChange = { value = it }, label = "Значение (дата)")
+                "DATE" -> com.example.entimate.ui.components.DateField(value = value, onValueChange = { onValueChange(it); value = it }, label = "Значение (дата)")
                 "CHECKBOX" -> {
                     var chk by remember(value) { mutableStateOf(value == "true") }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = chk, onCheckedChange = { chk = it; value = if (it) "true" else "false" })
+                        Checkbox(checked = chk, onCheckedChange = { c -> chk = c; val nv = if (c) "true" else "false"; value = nv; onValueChange(nv) })
                         Spacer(Modifier.width(8.dp)); Text("Да")
                     }
                 }
@@ -296,11 +311,11 @@ private fun FilterRow(
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(valExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                             )
                             ExposedDropdownMenu(expanded = valExpanded, onDismissRequest = { valExpanded = false }) {
-                                options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { value = o; valExpanded = false }) }
+                                options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { value = o; valExpanded = false; onValueChange(o) }) }
                             }
                         }
                     } else {
-                        OutlinedTextField(value = value, onValueChange = { value = it.stripNewlines() }, label = { Text("Значение") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        OutlinedTextField(value = value, onValueChange = { v -> value = v.stripNewlines(); onValueChange(v.stripNewlines()) }, label = { Text("Значение") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions, keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions())
                     }
                 }
             }
@@ -355,6 +370,7 @@ private fun AddColumnDialog(
     var selected by remember { mutableStateOf(initialKeys.toSet()) }
     var separator by remember { mutableStateOf(initial?.joinSeparator ?: " ") }
     var label by remember { mutableStateOf(initial?.label ?: "") }
+    val focusManager = LocalFocusManager.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -370,8 +386,8 @@ private fun AddColumnDialog(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = separator, onValueChange = { separator = it.stripNewlines() }, label = { Text("Разделитель") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(value = label, onValueChange = { label = it.stripNewlines() }, label = { Text("Заголовок (необязательно)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = separator, onValueChange = { separator = it.stripNewlines() }, label = { Text("Разделитель") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
+                OutlinedTextField(value = label, onValueChange = { label = it.stripNewlines() }, label = { Text("Заголовок (необязательно)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptionsDone, keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }))
             }
         },
         confirmButton = {

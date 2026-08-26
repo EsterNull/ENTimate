@@ -35,14 +35,20 @@ fun DateField(
     onValueChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier.fillMaxWidth(),
+    maxDate: Long? = null,
+    minDate: Long? = null,
 ) {
     val context = LocalContext.current
     val pattern = LocalDatePattern.current
     val display = formatIsoDate(value, pattern)
-    val cal = remember(value) {
+    val cal = remember(value, maxDate, minDate) {
         Calendar.getInstance().apply {
             if (value.isNotBlank()) {
                 try { time = isoFmt.parse(value) ?: Date() } catch (_: Exception) { }
+            } else if (maxDate != null) {
+                timeInMillis = maxDate
+            } else if (minDate != null) {
+                timeInMillis = minDate
             }
         }
     }
@@ -59,6 +65,8 @@ fun DateField(
                 },
                 cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
             )
+            if (maxDate != null) picker.datePicker.maxDate = maxDate
+            if (minDate != null) picker.datePicker.minDate = minDate
             picker.setOnDismissListener { show = false }
             picker.show()
         }
@@ -66,7 +74,14 @@ fun DateField(
     }
 
     LaunchedEffect(interactionSource) {
-        interactionSource.interactions.collect { if (it is androidx.compose.foundation.interaction.PressInteraction.Press) show = true }
+        var pressed = false
+        interactionSource.interactions.collect { i ->
+            when (i) {
+                is PressInteraction.Press -> pressed = true
+                is PressInteraction.Release -> if (pressed) { pressed = false; show = true }
+                is PressInteraction.Cancel -> pressed = false
+            }
+        }
     }
 
     OutlinedTextField(

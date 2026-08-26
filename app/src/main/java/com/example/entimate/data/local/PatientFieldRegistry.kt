@@ -21,7 +21,7 @@ data class PatientFieldDef(
 )
 
 val PATIENT_FIELDS: List<PatientFieldDef> = listOf(
-    PatientFieldDef("number", "Номер", "NUMBER", true, true),
+    PatientFieldDef("number", "Номер", "NUMBER", false, true),
     PatientFieldDef("lastName", "Фамилия", "TEXT", true, true),
     PatientFieldDef("firstName", "Имя", "TEXT", true, true),
     PatientFieldDef("middleName", "Отчество", "TEXT", false, true),
@@ -32,7 +32,7 @@ val PATIENT_FIELDS: List<PatientFieldDef> = listOf(
     PatientFieldDef("serviceDate", "Дата поступления на службу", "DATE", false, false),
     PatientFieldDef("rvk", "РВК", "TEXT", false, false),
     PatientFieldDef("rank", "Войсковое звание", "DROPDOWN", true, true, MILITARY_RANKS.joinToString(",")),
-    PatientFieldDef("unit", "Войсковая часть", "TEXT", false, true),
+    PatientFieldDef("unit", "Войсковая часть", "TEXT", true, true),
     PatientFieldDef("position", "Должность, специальность", "TEXT", false, false),
     PatientFieldDef("admissionDate", "Дата поступления", "DATE", true, true),
     PatientFieldDef("referredBy", "Кем направлен больной", "TEXT", false, false),

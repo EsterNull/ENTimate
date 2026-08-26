@@ -15,6 +15,7 @@ object SettingsKeys {
     val CUSTOM_BG_COLOR = longPreferencesKey("custom_bg_color")
     val CUSTOM_SECONDARY_COLOR = longPreferencesKey("custom_secondary_color")
     val DATE_FORMAT = stringPreferencesKey("date_format")
+    val TUTORIAL_SEEN = booleanPreferencesKey("tutorial_seen")
 }
 
 data class ThemeSettings(
@@ -55,4 +56,11 @@ class SettingsDataStore(private val context: Context) {
             dateFormat?.let { prefs[SettingsKeys.DATE_FORMAT] = it }
         }
     }
+
+    suspend fun setTutorialSeen() {
+        context.dataStore.edit { prefs -> prefs[SettingsKeys.TUTORIAL_SEEN] = true }
+    }
+
+    fun isTutorialSeen(): Flow<Boolean> =
+        context.dataStore.data.map { prefs -> prefs[SettingsKeys.TUTORIAL_SEEN] ?: false }
 }

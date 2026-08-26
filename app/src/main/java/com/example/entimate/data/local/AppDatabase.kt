@@ -30,7 +30,7 @@ import java.util.Locale
         PatientFieldLinkEntity::class,
         PatientDocumentEffectEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -212,13 +212,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE documents ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE patients ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE reports ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "entimate.db"
-                ).addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                )                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -244,10 +252,13 @@ abstract class AppDatabase : RoomDatabase() {
             val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val today = dateFmt.format(Date())
 
-            fun insertReport(name: String, desc: String, color: Int): Long {
-                val cv = ContentValues().apply { put("name", name); put("description", desc); put("colorArgb", color) }
-                return db.insert("reports", SQLiteDatabase.CONFLICT_IGNORE, cv)
-            }
+                fun insertReport(name: String, desc: String, color: Int): Long {
+                    val cv = ContentValues().apply {
+                        put("name", name); put("description", desc); put("colorArgb", color); put("sortOrder", 0)
+                        put("kind", "DOCUMENTS"); put("version", CURRENT_DATA_VERSION); put("extras", "")
+                    }
+                    return db.insert("reports", SQLiteDatabase.CONFLICT_IGNORE, cv)
+                }
             fun insertCol(reportId: Long, fieldKey: String, position: Int): Long {
                 val cv = ContentValues().apply {
                     put("reportId", reportId)
@@ -256,6 +267,7 @@ abstract class AppDatabase : RoomDatabase() {
                     put("joinSeparator", " ")
                     put("label", "")
                     put("position", position)
+                    put("trueText", ""); put("falseText", "")
                 }
                 return db.insert("report_columns", SQLiteDatabase.CONFLICT_IGNORE, cv)
             }
@@ -288,9 +300,11 @@ abstract class AppDatabase : RoomDatabase() {
                 val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val today = dateFmt.format(Date())
 
+                var docOrder = 0
                 fun insertDoc(name: String, desc: String, color: Int, qty: Int, step: Int = 1): Long {
                     val cv = ContentValues().apply {
-                        put("name", name); put("description", desc); put("colorArgb", color); put("quantity", qty); put("step", step)
+                        put("name", name); put("description", desc); put("colorArgb", color); put("quantity", qty); put("step", step); put("sortOrder", docOrder++)
+                        put("version", CURRENT_DATA_VERSION); put("extras", "")
                     }
                     return db.insert("documents", SQLiteDatabase.CONFLICT_IGNORE, cv)
                 }

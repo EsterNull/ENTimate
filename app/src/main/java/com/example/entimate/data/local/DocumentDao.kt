@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DocumentDao {
-    @Query("SELECT * FROM documents ORDER BY name ASC")
+    @Query("SELECT * FROM documents ORDER BY sortOrder ASC, name ASC")
     fun observeAll(): Flow<List<DocumentEntity>>
 
     @Query("SELECT * FROM documents")
@@ -29,11 +29,23 @@ interface DocumentDao {
     @Query("UPDATE documents SET quantity = :quantity WHERE id = :id")
     suspend fun updateQuantity(id: Long, quantity: Int)
 
-    @Query("UPDATE documents SET quantity = MAX(0, quantity + :delta) WHERE id = :docId")
-    suspend fun addQuantity(docId: Long, delta: Int)
+    @Transaction
+    suspend fun addQuantity(docId: Long, delta: Int) {
+        val doc = getById(docId) ?: return
+        update(doc.copy(quantity = doc.quantity + delta))
+    }
 
     @Query("DELETE FROM documents")
     suspend fun deleteAll()
+
+    @Query("DELETE FROM document_changes")
+    suspend fun deleteAllChanges()
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM documents")
+    suspend fun getMaxOrder(): Int
+
+    @Query("UPDATE documents SET sortOrder = :order WHERE id = :id")
+    suspend fun setOrder(id: Long, order: Int)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChange(change: DocumentChangeEntity)

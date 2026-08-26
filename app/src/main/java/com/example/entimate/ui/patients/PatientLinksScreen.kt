@@ -21,6 +21,7 @@ import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.*
 
+import com.example.entimate.ui.components.TextKeyboardOptions
 import com.example.entimate.ui.stripNewlines
 import com.example.entimate.viewmodel.PatientsViewModel
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,11 +111,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
         AddLinkDialog(
             documents = documents,
             conditionOptions = fieldLinkOptions(def),
-            defaultCondition = when (def.type) {
-                "CHECKBOX" -> "true"
-                "SWITCH", "DROPDOWN" -> fieldLinkOptions(def).firstOrNull() ?: ""
-                else -> ""
-            },
+            defaultCondition = "",
             onDismiss = { showDialogFor = null },
             onConfirm = { docId, operation, amount, cond ->
                 val link = PatientFieldLinkEntity(sourceKey = def.key, conditionValue = cond, documentId = docId, operation = operation, amount = amount)
@@ -215,7 +212,7 @@ private fun AddLinkDialog(
 ) {
     var docId by remember { mutableStateOf(documents.firstOrNull()?.id ?: 0L) }
     var docExpanded by remember { mutableStateOf(false) }
-    var operation by remember { mutableStateOf("DECREASE") }
+    var operation by remember { mutableStateOf("INCREASE") }
     var opExpanded by remember { mutableStateOf(false) }
     var amount by remember { mutableStateOf("1") }
     var condition by remember { mutableStateOf(defaultCondition) }
@@ -261,7 +258,7 @@ private fun AddLinkDialog(
                             }
                         }
                     } else {
-                        OutlinedTextField(value = condition, onValueChange = { condition = it.stripNewlines() }, label = { Text("При значении (равно)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        OutlinedTextField(value = condition, onValueChange = { condition = it.stripNewlines() }, label = { Text("При значении (равно)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
                     }
                 }
             }

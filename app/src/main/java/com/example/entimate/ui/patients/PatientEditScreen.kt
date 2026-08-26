@@ -13,6 +13,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -20,11 +23,25 @@ import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.*
 import com.example.entimate.ui.components.DateField
+import com.example.entimate.ui.components.TextKeyboardOptions
+import com.example.entimate.ui.components.TextKeyboardOptionsDone
 import com.example.entimate.ui.stripNewlines
 import com.example.entimate.viewmodel.PatientsViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+
+private val COLLAPSED_BY_DEFAULT = setOf(
+    "number",
+    "idSeries",
+    "idNumber",
+    "serviceDate",
+    "rvk",
+    "position",
+    "referredBy",
+    "emergency",
+    "illnessStart",
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,9 +55,33 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
     val values = remember { mutableStateMapOf<String, String>() }
     val customValues = remember { mutableStateMapOf<Long, String>() }
     var showErrors by remember { mutableStateOf(false) }
-    var expandedAdvanced by remember { mutableStateOf(false) }
+    var expandedMore by remember { mutableStateOf(false) }
     var createdAt by remember { mutableStateOf(0L) }
     var existingId by remember { mutableStateOf(0L) }
+    val birthMaxDate = remember {
+        Calendar.getInstance().apply {
+            add(Calendar.YEAR, -18)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val todayStart = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val lastFieldKey = remember(customFields, expandedMore) {
+        buildList {
+            addAll(PATIENT_FIELDS.filter { it.key !in COLLAPSED_BY_DEFAULT }.map { it.key })
+            if (expandedMore) addAll(PATIENT_FIELDS.filter { it.key in COLLAPSED_BY_DEFAULT }.map { it.key })
+            if (customFields.isNotEmpty()) addAll(customFields.map { "custom:${it.id}" })
+        }.lastOrNull()
+    }
 
     LaunchedEffect(Unit) {
         if (patientId != 0L) {
@@ -65,10 +106,21 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             values["rank"] = "Рядовой"
             values["category"] = "По призыву"
             values["personalNumber"] = "-"
+            values["number"] = "1"
             values["admissionDate"] = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             values["svo"] = "false"
             values["soch"] = "false"
             loaded = true
+        }
+    }
+
+    LaunchedEffect(customFields) {
+        if (patientId == 0L) {
+            customFields.forEach { cf ->
+                if (cf.defaultValue.isNotBlank() && customValues[cf.id].isNullOrBlank()) {
+                    customValues[cf.id] = cf.defaultValue
+                }
+            }
         }
     }
 
@@ -131,34 +183,36 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
                 Text("Заполните обязательные поля (отмечены *).", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(8.dp))
             }
-            PATIENT_FIELDS.filter { it.defaultVisible }.forEach { def ->
-                FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it })
+            PATIENT_FIELDS.filter { it.key !in COLLAPSED_BY_DEFAULT }.forEach { def ->
+                FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it }, if (def.key == "birthDate") birthMaxDate else null, if (def.key == "admissionDate") todayStart else null, def.key == lastFieldKey)
                 Spacer(Modifier.height(10.dp))
             }
 
             HorizontalDivider()
             Spacer(Modifier.height(8.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().clickable { expandedAdvanced = !expandedAdvanced },
+                modifier = Modifier.fillMaxWidth().clickable { expandedMore = !expandedMore },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Расширенные параметры", style = MaterialTheme.typography.titleMedium)
+                Text("Дополнительно", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.weight(1f))
-                Text(if (expandedAdvanced) "Скрыть" else "Показать")
+                Text(if (expandedMore) "Скрыть" else "Показать")
             }
-            if (expandedAdvanced) {
+            if (expandedMore) {
                 Spacer(Modifier.height(8.dp))
-                PATIENT_FIELDS.filter { !it.defaultVisible }.forEach { def ->
-                    FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it })
+                PATIENT_FIELDS.filter { it.key in COLLAPSED_BY_DEFAULT }.forEach { def ->
+                    FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it }, if (def.key == "birthDate") birthMaxDate else null, if (def.key == "admissionDate") todayStart else null, def.key == lastFieldKey)
                     Spacer(Modifier.height(10.dp))
                 }
+            }
 
-                // Custom fields (managed in Settings; here only filled in)
+            if (customFields.isNotEmpty()) {
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                Text("Пользовательские поля", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
                 customFields.forEach { cf ->
-                    CustomFieldEditor(cf, customValues[cf.id] ?: "", onValueChange = { customValues[cf.id] = it }, onDelete = {
-                        vm.deleteCustomField(cf)
-                        customValues.remove(cf.id)
-                    })
+                    CustomFieldEditor(cf, customValues[cf.id] ?: "", onValueChange = { customValues[cf.id] = it }, isLast = "custom:${cf.id}" == lastFieldKey)
                     Spacer(Modifier.height(10.dp))
                 }
             }
@@ -174,11 +228,16 @@ private fun fieldOptions(def: PatientFieldDef): List<String> = when (def.key) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValueChange: (String) -> Unit) {
+private fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValueChange: (String) -> Unit, maxBirthDate: Long? = null, minDate: Long? = null, isLast: Boolean = false) {
     val required = def.required
     val error = showErrors && required && value.isBlank()
+    val focusManager = LocalFocusManager.current
     when (def.type) {
         "TEXT", "NUMBER" -> {
+            val kb = if (def.type == "NUMBER")
+                androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = if (isLast) ImeAction.Done else ImeAction.Next)
+            else
+                if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions
             OutlinedTextField(
                 value = value,
                 onValueChange = { onValueChange(it.replace("\n", "").replace("\r", "")) },
@@ -186,11 +245,18 @@ private fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean
                 isError = error,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                keyboardOptions = if (def.type == "NUMBER") androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number) else androidx.compose.foundation.text.KeyboardOptions.Default,
+                keyboardOptions = kb,
+                keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
             )
         }
         "DATE" -> {
-            DateField(value = value, onValueChange = onValueChange, label = def.label + if (required) " *" else "")
+            DateField(
+                value = value,
+                onValueChange = onValueChange,
+                label = def.label + if (required) " *" else "",
+                maxDate = maxBirthDate,
+                minDate = minDate,
+            )
         }
         "SWITCH" -> {
             val options = fieldOptions(def)
@@ -244,27 +310,31 @@ private fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean
             }
         }
         else -> {
-            OutlinedTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = { Text(def.label) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = { Text(def.label) }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions, keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions())
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onValueChange: (String) -> Unit, onDelete: () -> Unit) {
+private fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onValueChange: (String) -> Unit, onDelete: (() -> Unit)? = null, isLast: Boolean = false) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(cf.label, style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "Удалить поле", tint = MaterialTheme.colorScheme.error) }
+                onDelete?.let {
+                    IconButton(onClick = it) { Icon(Icons.Filled.Delete, contentDescription = "Удалить поле", tint = MaterialTheme.colorScheme.error) }
+                }
             }
             Spacer(Modifier.height(6.dp))
+            val focusManager = LocalFocusManager.current
             when (cf.type) {
                 "TEXT", "NUMBER" -> OutlinedTextField(
                     value = value, onValueChange = { onValueChange(it.replace("\n", "").replace("\r", "")) }, label = { Text("Значение") }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    keyboardOptions = if (cf.type == "NUMBER") androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number) else androidx.compose.foundation.text.KeyboardOptions.Default,
+                    keyboardOptions = if (cf.type == "NUMBER") androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = if (isLast) ImeAction.Done else ImeAction.Next) else (if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions),
+                    keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
                 )
                 "DATE" -> DateField(value = value, onValueChange = onValueChange, label = "Значение")
                 "DROPDOWN" -> {
@@ -284,7 +354,7 @@ private fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onVal
                     Checkbox(checked = value == "true", onCheckedChange = { onValueChange(if (it) "true" else "false") })
                     Spacer(Modifier.width(8.dp)); Text("Да")
                 }
-                else -> OutlinedTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = { Text("Значение") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                else -> OutlinedTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = { Text("Значение") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions, keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions())
             }
         }
     }

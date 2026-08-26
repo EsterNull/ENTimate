@@ -1,5 +1,6 @@
 ﻿package com.example.entimate.data.repository
 
+import android.util.Log
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
 import com.example.entimate.settings.SettingsDataStore
@@ -187,11 +188,13 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
     suspend fun importJson(json: String) = db.withTransaction {
         val root = JSONObject(json)
         db.documentDao().deleteAll()
+        db.documentDao().deleteAllChanges()
         db.formDao().deleteAllForms()
         db.formDao().deleteAllFields()
         db.formDao().deleteAllLinks()
         db.submissionDao().deleteAll()
         db.reportDao().deleteAll()
+        db.patientDao().clearEffects()
 
         val docs = root.optJSONArray("documents")
         if (docs != null) {
@@ -429,6 +432,11 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 customSecondary = settingsObj.optLong("customSecondary", 0L),
                 dateFormat = settingsObj.optString("dateFormat", "dd.MM.yyyy"),
             )
+        }
+        try {
+            PatientRepository(db).syncEffectRecords()
+        } catch (e: Exception) {
+            Log.e("ENT", "syncEffectRecords skipped during import: ${e.message}")
         }
     }
 }

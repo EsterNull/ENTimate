@@ -28,7 +28,7 @@ fun AddCustomFieldDialog(
         title = { Text(if (initial == null) "Новое поле" else "Изменить поле") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = label, onValueChange = { label = it.stripNewlines() }, label = { Text("Название") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = label, onValueChange = { label = it.stripNewlines() }, label = { Text("Название") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
                 ExposedDropdownMenuBox(expanded = typeExpanded, onExpandedChange = { typeExpanded = it }, modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = types.first { it.first == type }.second, onValueChange = {}, readOnly = true, label = { Text("Тип") },
@@ -42,10 +42,10 @@ fun AddCustomFieldDialog(
                     OutlinedTextField(
                         value = options, onValueChange = { options = it.stripNewlines() },
                         label = { Text("Варианты (через запятую)") }, modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        keyboardOptions = TextKeyboardOptions,
                     )
                 }
-                OutlinedTextField(value = default, onValueChange = { default = it.stripNewlines() }, label = { Text("Значение по умолчанию") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = default, onValueChange = { default = it.stripNewlines() }, label = { Text("Значение по умолчанию") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
             }
         },
         confirmButton = {

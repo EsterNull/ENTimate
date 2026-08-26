@@ -6,11 +6,11 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PatientDao {
     @Transaction
-    @Query("SELECT * FROM patients ORDER BY number ASC")
+    @Query("SELECT * FROM patients ORDER BY sortOrder ASC, number ASC")
     fun observeAll(): Flow<List<PatientWithValues>>
 
     @Transaction
-    @Query("SELECT * FROM patients ORDER BY number ASC")
+    @Query("SELECT * FROM patients ORDER BY sortOrder ASC, number ASC")
     suspend fun getAllPatients(): List<PatientEntity>
 
     @Transaction
@@ -87,9 +87,18 @@ interface PatientDao {
     @Query("SELECT MIN(createdAt) FROM patients")
     suspend fun getEarliestCreatedAt(): Long?
 
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM patients")
+    suspend fun getMaxSortOrder(): Int
+
+    @Query("UPDATE patients SET sortOrder = :order WHERE id = :id")
+    suspend fun setSortOrder(id: Long, order: Int)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEffect(e: PatientDocumentEffectEntity)
 
     @Query("DELETE FROM patient_document_effects WHERE patientId = :patientId")
     suspend fun deleteEffects(patientId: Long)
+
+    @Query("DELETE FROM patient_document_effects")
+    suspend fun clearEffects()
 }

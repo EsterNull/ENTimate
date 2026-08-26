@@ -1,6 +1,9 @@
 package com.example.entimate.viewmodel
 
 import android.app.Application
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.entimate.EntimateApplication
@@ -13,8 +16,7 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
     private val repo = (application as EntimateApplication).documentRepository
 
     val documents: StateFlow<List<DocumentEntity>> = repo.allDocumentsFlow
-        .catch { emit(emptyList<DocumentEntity>()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun save(doc: DocumentEntity) = viewModelScope.launch {
         if (doc.id == 0L) repo.insert(doc) else repo.update(doc)
@@ -24,10 +26,17 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
         repo.delete(doc)
     }
 
+    fun reorder(from: Int, to: Int) = viewModelScope.launch {
+        val ids = documents.value.map { it.id }.toMutableList()
+        if (from !in ids.indices || to !in ids.indices) return@launch
+        val id = ids.removeAt(from)
+        ids.add(to, id)
+        repo.reorder(ids)
+    }
+
     fun adjust(docId: Long, sign: Int) {
         viewModelScope.launch {
-            val step = repo.getById(docId)?.step ?: 1
-            repo.adjust(docId, sign * step)
+            repo.adjust(docId, sign)
         }
     }
 

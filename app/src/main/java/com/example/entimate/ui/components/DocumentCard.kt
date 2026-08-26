@@ -3,8 +3,6 @@ package com.example.entimate.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -19,9 +17,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.entimate.data.local.DocumentEntity
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun DocumentCard(
@@ -31,6 +26,9 @@ fun DocumentCard(
     onAdjust: (Int) -> Unit = {},
     onCommit: (Int) -> Unit = {},
 ) {
+    var displayQty by remember(doc.id) { mutableStateOf(doc.quantity) }
+    LaunchedEffect(doc.quantity) { displayQty = doc.quantity }
+
     val hasColor = doc.colorArgb != 0
     val bg = if (hasColor) Color(doc.colorArgb) else MaterialTheme.colorScheme.surface
     val onBg = if (hasColor) {
@@ -80,12 +78,15 @@ fun DocumentCard(
                 HoldIconButton(
                     sign = -1,
                     doc = doc,
-                    onAdjust = onAdjust,
+                    onAdjust = { sign ->
+                        displayQty += sign * doc.step
+                        onAdjust(sign)
+                    },
                     onCommit = onCommit,
                     onBg = onBg,
                 )
                 Text(
-                    text = doc.quantity.toString(),
+                    text = displayQty.toString(),
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
                     color = onBg,
@@ -93,7 +94,10 @@ fun DocumentCard(
                 HoldIconButton(
                     sign = 1,
                     doc = doc,
-                    onAdjust = onAdjust,
+                    onAdjust = { sign ->
+                        displayQty += sign * doc.step
+                        onAdjust(sign)
+                    },
                     onCommit = onCommit,
                     onBg = onBg,
                 )
@@ -110,38 +114,11 @@ private fun HoldIconButton(
     onCommit: (Int) -> Unit,
     onBg: Color,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val heldDelta = remember { mutableIntStateOf(0) }
-    val pressJob = remember { mutableStateOf<Job?>(null) }
-    LaunchedEffect(interactionSource) {
-        interactionSource.interactions.collect { interaction ->
-            when (interaction) {
-                is PressInteraction.Press -> {
-                    heldDelta.intValue = 0
-                    onAdjust(sign)
-                    heldDelta.intValue += sign
-                    val job = launch {
-                        delay(400)
-                        while (true) {
-                            onAdjust(sign)
-                            heldDelta.intValue += sign
-                            delay(130)
-                        }
-                    }
-                    pressJob.value = job
-                }
-                is PressInteraction.Release, is PressInteraction.Cancel -> {
-                    pressJob.value?.cancel()
-                    pressJob.value = null
-                    if (heldDelta.intValue != 0) onCommit(heldDelta.intValue)
-                    heldDelta.intValue = 0
-                }
-            }
-        }
-    }
     IconButton(
-        onClick = {},
-        interactionSource = interactionSource,
+        onClick = {
+            onAdjust(sign)
+            onCommit(sign)
+        },
     ) {
         Icon(
             imageVector = if (sign > 0) Icons.Filled.Add else Icons.Filled.Remove,

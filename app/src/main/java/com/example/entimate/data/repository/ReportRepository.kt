@@ -38,6 +38,9 @@ class ReportRepository(private val db: AppDatabase) {
     suspend fun getReportWithFilters(id: Long) = reportDao.getWithFilters(id)?.let { it.copy(report = it.report.migrate()) }
     suspend fun deleteReport(report: ReportEntity) = reportDao.deleteReport(report)
     suspend fun getAllReports() = reportDao.getAll().map { it.migrate() }
+    suspend fun reorder(orderedIds: List<Long>) {
+        orderedIds.forEachIndexed { index, id -> reportDao.setSortOrder(id, index) }
+    }
     suspend fun patientCustomFields() = patientDao.getAllCustomFields()
     suspend fun getEarliestPatientTime(): Long? = patientDao.getEarliestCreatedAt()
 

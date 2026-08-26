@@ -6,12 +6,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,7 +25,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.example.entimate.ui.components.LocalTutorial
 import com.example.entimate.ui.components.colorLuminance
+import com.example.entimate.ui.components.rememberReorderState
+import com.example.entimate.ui.components.tutorialAnchor
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -31,7 +39,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
     val reports by vm.reports.collectAsStateWithLifecycle()
@@ -39,11 +47,22 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
     val app = context.applicationContext as com.example.entimate.EntimateApplication
     val repo = app.reportRepository
+    val tutorial = LocalTutorial.current
 
     var pendingDup by remember { mutableStateOf<ReportWithColumns?>(null) }
+    var pendingDelete by remember { mutableStateOf<ReportWithColumns?>(null) }
     var generateTarget by remember { mutableStateOf<ReportWithColumns?>(null) }
+    var reordering by remember { mutableStateOf(false) }
     var fromMillis by remember { mutableStateOf(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000) }
     var toMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    val listState = rememberLazyListState()
+    val reorderState = rememberReorderState(
+        lazyListState = listState,
+        items = reports,
+        keyOf = { it.report.id },
+        onReorder = { from, to -> vm.reorder(from, to) },
+    )
 
     if (generateTarget != null) {
         val fmt = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
@@ -109,13 +128,41 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
         )
     }
 
+    if (pendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Удалить отчёт?") },
+            text = { Text("Отчёт «${pendingDelete!!.report.name}» будет удалён безвозвратно.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val r = pendingDelete!!
+                    pendingDelete = null
+                    vm.delete(r.report)
+                }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Отмена") } },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Отчёты") },
                 actions = {
-                    IconButton(onClick = { nav.navigate("reports/edit/0") }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Добавить отчёт")
+                    if (reordering) {
+                        IconButton(onClick = { reordering = false }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Завершить изменение порядка")
+                        }
+                    } else {
+                        IconButton(onClick = { tutorial?.start() }) {
+                            Icon(Icons.Filled.Help, contentDescription = "Обучение")
+                        }
+                        IconButton(onClick = { nav.navigate("reports/edit/0") }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Добавить отчёт")
+                        }
+                        IconButton(onClick = { reordering = true }) {
+                            Icon(Icons.Filled.DragHandle, contentDescription = "Изменить порядок")
+                        }
                     }
                 },
             )
@@ -129,56 +176,85 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
+                state = listState,
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(reports, key = { it.report.id }) { r ->
-                    val dismissState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { value ->
-                            when (value) {
-                                SwipeToDismissBoxValue.EndToStart -> { vm.delete(r.report); false }
-                                SwipeToDismissBoxValue.StartToEnd -> { nav.navigate("reports/edit/${r.report.id}"); false }
-                                else -> false
+                itemsIndexed(reports, key = { _, r -> r.report.id }) { index, r ->
+                    if (reordering) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (reorderState.draggingKey != r.report.id) Modifier.animateItem() else Modifier)
+                                .then(reorderState.draggedItemModifier(r)),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Filled.DragHandle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .padding(6.dp)
+                                    .then(reorderState.handleModifier(r)),
+                            )
+                            Box(Modifier.weight(1f)) {
+                                ReportCard(
+                                    report = r,
+                                    onGenerate = {},
+                                    onLongClick = {},
+                                )
                             }
                         }
-                    )
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = {
-                            val direction = dismissState.dismissDirection
-                            val bg = when (direction) {
-                                SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                                SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
-                                else -> Color.Transparent
-                            }
-                            val icon = when (direction) {
-                                SwipeToDismissBoxValue.EndToStart -> Icons.Filled.Delete
-                                SwipeToDismissBoxValue.StartToEnd -> Icons.Filled.Edit
-                                else -> null
-                            }
-                            Box(
-                                Modifier
-                                    .fillMaxSize()
-                                    .clip(MaterialTheme.shapes.medium)
-                                    .background(bg)
-                                    .padding(horizontal = 24.dp),
-                                contentAlignment = if (direction == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart,
-                            ) {
-                                icon?.let {
-                                    Icon(
-                                        it,
-                                        contentDescription = null,
-                                        tint = if (direction == SwipeToDismissBoxValue.EndToStart) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                    )
+                    } else {
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            positionalThreshold = { it * 0.85f },
+                            confirmValueChange = { value ->
+                                when (value) {
+                                    SwipeToDismissBoxValue.EndToStart -> { pendingDelete = r; false }
+                                    SwipeToDismissBoxValue.StartToEnd -> { nav.navigate("reports/edit/${r.report.id}"); false }
+                                    else -> false
                                 }
                             }
-                        },
-                    ) {
-                        ReportCard(
-                            report = r,
-                            onGenerate = { fromMillis = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000; toMillis = System.currentTimeMillis(); generateTarget = r },
-                            onLongClick = { pendingDup = r },
                         )
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            backgroundContent = {
+                                val direction = dismissState.dismissDirection
+                                val bg = when (direction) {
+                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+                                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
+                                    else -> Color.Transparent
+                                }
+                                val icon = when (direction) {
+                                    SwipeToDismissBoxValue.EndToStart -> Icons.Filled.Delete
+                                    SwipeToDismissBoxValue.StartToEnd -> Icons.Filled.Edit
+                                    else -> null
+                                }
+                                Box(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .clip(MaterialTheme.shapes.medium)
+                                        .background(bg)
+                                        .padding(horizontal = 24.dp),
+                                    contentAlignment = if (direction == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart,
+                                ) {
+                                    icon?.let {
+                                        Icon(
+                                            it,
+                                            contentDescription = null,
+                                            tint = if (direction == SwipeToDismissBoxValue.EndToStart) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+                            },
+                        ) {
+                            ReportCard(
+                                report = r,
+                                onGenerate = { fromMillis = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000; toMillis = System.currentTimeMillis(); generateTarget = r },
+                                onLongClick = { pendingDup = r },
+                            )
+                        }
                     }
                 }
             }

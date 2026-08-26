@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ReportDao {
     @Transaction
-    @Query("SELECT * FROM reports ORDER BY name ASC")
+    @Query("SELECT * FROM reports ORDER BY sortOrder ASC, name ASC")
     fun observeAll(): Flow<List<ReportWithColumns>>
 
     @Transaction
@@ -22,6 +22,12 @@ interface ReportDao {
 
     @Query("SELECT * FROM reports")
     suspend fun getAll(): List<ReportEntity>
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM reports")
+    suspend fun getMaxSortOrder(): Int
+
+    @Query("UPDATE reports SET sortOrder = :order WHERE id = :id")
+    suspend fun setSortOrder(id: Long, order: Int)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReport(report: ReportEntity): Long

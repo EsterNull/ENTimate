@@ -23,5 +23,13 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { repo.deleteReport(report) }
     }
 
+    fun reorder(from: Int, to: Int) = viewModelScope.launch {
+        val ids = reports.value.map { it.report.id }.toMutableList()
+        if (from !in ids.indices || to !in ids.indices) return@launch
+        val id = ids.removeAt(from)
+        ids.add(to, id)
+        repo.reorder(ids)
+    }
+
     suspend fun duplicateReport(reportId: Long): Long = repo.duplicateReport(reportId)
 }

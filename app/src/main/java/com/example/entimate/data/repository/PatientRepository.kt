@@ -1,13 +1,17 @@
 package com.example.entimate.data.repository
 
+import android.util.Log
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
 
 class PatientRepository(private val db: AppDatabase) {
     private val patientDao = db.patientDao()
     private val documentDao = db.documentDao()
+
+    val effectLog = MutableSharedFlow<String>(extraBufferCapacity = 16)
 
     val patientsFlow: Flow<List<PatientWithValues>> =
         patientDao.observeAll().map { list -> list.map { pw -> pw.copy(patient = pw.patient.migrate()) } }
@@ -22,12 +26,13 @@ class PatientRepository(private val db: AppDatabase) {
     suspend fun getPatient(id: Long) = patientDao.getWithValues(id)?.let { it.copy(patient = it.patient.migrate()) }
 
     suspend fun savePatient(patient: PatientEntity, customValues: Map<Long, String>): Long = db.withTransaction {
-        val id = if (patient.id == 0L) {
-            patientDao.insertPatient(patient)
+        val toSave = if (patient.id == 0L) patient.copy(sortOrder = patientDao.getMaxSortOrder() + 1) else patient
+        val id = if (toSave.id == 0L) {
+            patientDao.insertPatient(toSave)
         } else {
-            revertEffects(patient.id)
-            patientDao.updatePatient(patient)
-            patient.id
+            revertEffects(toSave.id)
+            patientDao.updatePatient(toSave)
+            toSave.id
         }
         patientDao.deleteCustomValues(id)
         customValues.forEach { (fid, value) ->
@@ -71,11 +76,31 @@ class PatientRepository(private val db: AppDatabase) {
         recomputeAllEffects()
     }
 
+    suspend fun reorder(orderedIds: List<Long>) = db.withTransaction {
+        orderedIds.forEachIndexed { index, id -> patientDao.setSortOrder(id, index) }
+    }
+
     suspend fun recomputeAllEffects() = db.withTransaction {
         val all = patientDao.getAllPatientsWithValues()
         all.forEach { p ->
             revertEffects(p.patient.id)
             applyEffects(p.patient.id)
+        }
+    }
+
+    suspend fun syncEffectRecords() = db.withTransaction {
+        val all = patientDao.getAllPatientsWithValues()
+        for (p in all) {
+            patientDao.deleteEffects(p.patient.id)
+            val cvMap = p.customValues.associate { it.fieldId to it.value }
+            val links = patientDao.getAllLinks()
+            val docIds = links.map { it.documentId }.toSet()
+            for (docId in docIds) {
+                val net = links.filter { it.documentId == docId }.sumOf { link -> effectFor(link, p.patient, cvMap) }
+                if (net != 0) {
+                    patientDao.insertEffect(PatientDocumentEffectEntity(patientId = p.patient.id, documentId = docId, netDelta = net))
+                }
+            }
         }
     }
 
@@ -89,16 +114,13 @@ class PatientRepository(private val db: AppDatabase) {
         val cvMap = p.customValues.associate { it.fieldId to it.value }
         val links = patientDao.getAllLinks()
         val docIds = links.map { it.documentId }.toSet()
+        var totalNet = 0
         for (docId in docIds) {
-            val net = links.filter { it.documentId == docId }.sumOf { link ->
-                when {
-                    link.sourceKey == PATIENT_GLOBAL_KEY -> if (link.operation == "INCREASE") link.amount else -link.amount
-                    valueFor(p.patient, cvMap, link.sourceKey) == link.conditionValue -> if (link.operation == "INCREASE") link.amount else -link.amount
-                    else -> 0
-                }
-            }
+            val net = links.filter { it.documentId == docId }.sumOf { link -> effectFor(link, p.patient, cvMap) }
+            totalNet += net
             if (net != 0) {
-                val oldQty = documentDao.getById(docId)?.quantity ?: 0
+                val d = documentDao.getById(docId)
+                val oldQty = d?.quantity ?: 0
                 documentDao.addQuantity(docId, net)
                 patientDao.insertEffect(PatientDocumentEffectEntity(patientId = patientId, documentId = docId, netDelta = net))
                 if (recordStats) {
@@ -112,7 +134,22 @@ class PatientRepository(private val db: AppDatabase) {
                         )
                     )
                 }
+                effectLog.tryEmit("Связь «${d?.name ?: "#$docId"}»: ${if (net > 0) "+" else ""}$net")
             }
+            Log.d("ENT", "applyEffects patient=$patientId doc=$docId net=$net")
+        }
+        if (totalNet == 0 && links.isNotEmpty()) {
+            effectLog.tryEmit("Связи: ни одно условие не совпало — счётчик не изменён")
+        }
+    }
+
+    private fun effectFor(link: PatientFieldLinkEntity, p: PatientEntity, cvMap: Map<Long, String>): Int {
+        val sign = if (link.operation == "INCREASE") link.amount else -link.amount
+        return when {
+            link.sourceKey == PATIENT_GLOBAL_KEY -> sign
+            link.conditionValue.isBlank() -> sign
+            valueFor(p, cvMap, link.sourceKey) == link.conditionValue -> sign
+            else -> 0
         }
     }
 

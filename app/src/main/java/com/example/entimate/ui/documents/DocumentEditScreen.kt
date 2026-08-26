@@ -21,12 +21,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.DocumentEntity
 import com.example.entimate.ui.components.ColorRow
+import com.example.entimate.ui.components.TextKeyboardOptions
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,6 +48,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
     var loaded by remember { mutableStateOf(docId == 0L) }
     var originalQuantity by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(docId) {
         if (docId != 0L) {
@@ -123,6 +128,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 label = { Text("Название") },
                 isError = nameError,
                 singleLine = true,
+                keyboardOptions = TextKeyboardOptions,
                 modifier = Modifier.fillMaxWidth(),
             )
             if (nameError) {
@@ -133,6 +139,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 value = description,
                 onValueChange = { description = it.stripNewlines() },
                 label = { Text("Описание") },
+                keyboardOptions = TextKeyboardOptions,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 100.dp),
@@ -148,7 +155,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 onValueChange = { quantity = it.filter { ch -> ch.isDigit() }.stripNewlines() },
                 label = { Text("Количество") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(12.dp))
@@ -157,7 +164,8 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 onValueChange = { step = it.filter { ch -> ch.isDigit() }.stripNewlines() },
                 label = { Text("Шаг изменения (кнопки + / -)") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 modifier = Modifier.fillMaxWidth(),
             )
         }

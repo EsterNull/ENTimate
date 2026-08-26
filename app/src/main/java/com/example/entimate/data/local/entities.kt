@@ -10,6 +10,7 @@ data class DocumentEntity(
     val colorArgb: Int,
     val quantity: Int,
     val step: Int = 1,
+    val sortOrder: Int = 0,
     override var version: Int = CURRENT_DATA_VERSION,
     override var extras: String = "",
 ) : Versioned
@@ -21,6 +22,7 @@ data class ReportEntity(
     val description: String,
     val colorArgb: Int = 0,
     val kind: String = "DOCUMENTS",
+    val sortOrder: Int = 0,
     override var version: Int = CURRENT_DATA_VERSION,
     override var extras: String = "",
 ) : Versioned
@@ -94,6 +96,7 @@ data class PatientEntity(
     val discharged: Int = 0,
     val colorArgb: Int = 0,
     val createdAt: Long = 0L,
+    val sortOrder: Int = 0,
     override var version: Int = CURRENT_DATA_VERSION,
     override var extras: String = "",
 ) : Versioned

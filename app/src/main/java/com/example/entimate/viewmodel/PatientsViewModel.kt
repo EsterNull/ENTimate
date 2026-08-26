@@ -23,6 +23,8 @@ class PatientsViewModel(application: Application) : AndroidViewModel(application
         .catch { emit(emptyList<DocumentEntity>()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val effectEvents: Flow<String> = repo.effectLog
+
     suspend fun getPatient(id: Long) = repo.getPatient(id)
     suspend fun getAllLinks() = repo.getAllLinks()
 
@@ -38,4 +40,15 @@ class PatientsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveLink(link: PatientFieldLinkEntity) = viewModelScope.launch { repo.saveLink(link) }
     fun deleteLink(link: PatientFieldLinkEntity) = viewModelScope.launch { repo.deleteLink(link) }
+
+    fun reorder(from: Int, to: Int) = viewModelScope.launch {
+        val all = patients.value
+        val active = all.filter { it.patient.discharged != 1 }
+        val discharged = all.filter { it.patient.discharged == 1 }
+        if (from !in active.indices || to !in active.indices) return@launch
+        val ids = active.map { it.patient.id }.toMutableList()
+        val id = ids.removeAt(from)
+        ids.add(to, id)
+        repo.reorder(ids + discharged.map { it.patient.id })
+    }
 }
