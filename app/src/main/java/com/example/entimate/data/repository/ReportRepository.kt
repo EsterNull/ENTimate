@@ -2,11 +2,15 @@ package com.example.entimate.data.repository
 
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
+import com.example.entimate.data.local.DocCell
+import com.example.entimate.data.local.manualTableFromJson
 import com.example.entimate.ui.components.formatIsoDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
 import java.util.*
+
+const val DROPDOWN_EMPTY_MARKER = "\u0000__EMPTY__\u0000"
 
 class ReportRepository(private val db: AppDatabase) {
     private val reportDao = db.reportDao()
@@ -34,9 +38,80 @@ class ReportRepository(private val db: AppDatabase) {
         id
     }
 
+    suspend fun saveDocumentReport(
+        report: ReportEntity,
+        blocks: List<Pair<ReportParagraphEntity, List<ReportDocElementEntity>>>,
+    ): Long = db.withTransaction {
+        val id = if (report.id == 0L) reportDao.insertReport(report) else { reportDao.updateReport(report); report.id }
+        reportDao.deleteParagraphsForReport(id)
+        reportDao.deleteElementsForReport(id)
+        blocks.forEach { (p, els) ->
+            val pid = reportDao.insertParagraph(p.copy(id = 0, reportId = id))
+            els.forEach { e -> reportDao.insertElement(e.copy(id = 0, paragraphId = pid)) }
+        }
+        id
+    }
+
+    suspend fun buildDocModel(reportId: Long, dateFormat: String = "dd.MM.yyyy", from: Long = 0L, to: Long = System.currentTimeMillis()): DocDocument {
+        val doc = reportDao.getWithDocument(reportId) ?: return DocDocument("", emptyList())
+        val paragraphs = doc.paragraphs.map { pw ->
+            val elements = pw.elements.map { e ->
+                when (e.type) {
+                    "REPORT" -> {
+                        val table = buildTable(e.embeddedReportId, from, to, dateFormat)
+                        var rows = table.rows.map { r -> r.map { DocCell(it) } }.toMutableList()
+                        while (rows.size < e.minRows) rows.add(List(table.headers.size) { DocCell("") })
+                        val headers = if (e.numberColumn == 1) listOf(DocCell("№")) + table.headers.map { DocCell(it) } else table.headers.map { DocCell(it) }
+                        val outRows = if (e.numberColumn == 1) rows.mapIndexed { i, r -> listOf(DocCell((i + 1).toString())) + r } else rows
+                        val colAligns = if (e.numberColumn == 1) listOf("CENTER") + table.colAligns else table.colAligns
+                        val n = headers.size
+                        val parsed = e.colWeights.split(',').mapNotNull { it.trim().toFloatOrNull()?.coerceAtLeast(0.1f) }
+                        val weights = if (parsed.isNotEmpty()) List(n) { parsed.getOrElse(it) { 0f } } else List(n) { 0f }
+                        DocTableEmbed(e.embeddedTitle, headers, outRows, e.align, e.bold == 1, e.italic == 1, e.underline == 1, e.size, e.colorArgb, e.bgArgb, e.joinPrevious == 1, colAligns, e.border, weights)
+                    }
+                    "TAB" -> DocTab()
+                    "PAGEBREAK" -> DocPageBreak
+                    "MANUAL" -> {
+                        val t = manualTableFromJson(e.text)
+                        val weights = t.headers.flatMap { h -> val span = h.colSpan.coerceAtLeast(1); val w = h.weight; List(span) { if (w > 0f) w / span else 0f } }
+                        DocTableEmbed(
+                            t.title,
+                            t.headers.map { DocCell(it.text, it.colSpan, it.weight, it.align) },
+                            t.rows.map { row -> row.map { DocCell(it.text, it.colSpan, it.weight, it.align) } },
+                            e.align, e.bold == 1, e.italic == 1, e.underline == 1, e.size, e.colorArgb, e.bgArgb, e.joinPrevious == 1, emptyList(), e.border, weights,
+                        )
+                    }
+                    else -> DocText(e.text, e.bold == 1, e.italic == 1, e.underline == 1, e.size, e.colorArgb, e.bgArgb)
+                }
+            }
+            DocParagraph(
+                font = pw.paragraph.font,
+                align = pw.paragraph.align,
+                indentLeftMm = pw.paragraph.indentLeftMm,
+                indentRightMm = pw.paragraph.indentRightMm,
+                firstLineMm = pw.paragraph.firstLineMm,
+                lineSpacing = pw.paragraph.lineSpacing,
+                spaceBeforeMm = pw.paragraph.spaceBeforeMm,
+                spaceAfterMm = pw.paragraph.spaceAfterMm,
+                elements = elements,
+            )
+        }
+        return DocDocument(
+            doc.report.name,
+            paragraphs,
+            doc.report.marginTopMm,
+            doc.report.marginRightMm,
+            doc.report.marginBottomMm,
+            doc.report.marginLeftMm,
+        )
+    }
+
     suspend fun getReportWithColumns(id: Long) = reportDao.getWithColumns(id)?.let { it.copy(report = it.report.migrate()) }
     suspend fun getReportWithFilters(id: Long) = reportDao.getWithFilters(id)?.let { it.copy(report = it.report.migrate()) }
+    suspend fun getReportWithDocument(id: Long) = reportDao.getWithDocument(id)?.let { it.copy(report = it.report.migrate()) }
     suspend fun deleteReport(report: ReportEntity) = reportDao.deleteReport(report)
+    suspend fun tableReports(): List<ReportEntity> = reportDao.getTableReports().map { it.migrate() }
+    suspend fun getColumnsForReport(reportId: Long): List<ReportColumnEntity> = reportDao.getColumnsForReport(reportId)
     suspend fun getAllReports() = reportDao.getAll().map { it.migrate() }
     suspend fun reorder(orderedIds: List<Long>) {
         orderedIds.forEachIndexed { index, id -> reportDao.setSortOrder(id, index) }
@@ -64,7 +139,7 @@ class ReportRepository(private val db: AppDatabase) {
         newId
     }
 
-    data class Table(val headers: List<String>, val rows: List<List<String>>)
+    data class Table(val headers: List<String>, val rows: List<List<String>>, val colAligns: List<String> = emptyList())
 
     private fun passes(value: String, operator: String, target: String): Boolean {
         return when (operator) {
@@ -108,9 +183,21 @@ class ReportRepository(private val db: AppDatabase) {
     }
 
     private fun interpretCheckbox(raw: String, col: ReportColumnEntity): String {
-        val trueText = col.trueText.ifBlank { "Да" }
-        val falseText = col.falseText.ifBlank { "Нет" }
-        return if (raw == "true") trueText else falseText
+        if (raw.isBlank()) return ""
+        val trueText = col.trueText.ifBlank { "" }
+        val falseText = col.falseText.ifBlank { "" }
+        return if (raw == "true" || raw == "1") trueText else falseText
+    }
+
+    private fun interpretDropdown(raw: String, col: ReportColumnEntity, fieldKey: String): String {
+        if (col.dropdownMap.isBlank() || raw.isBlank()) return raw
+        val map = parseDropdownMap(col.dropdownMap)
+        val mapped = map["$fieldKey#$raw"] ?: map[raw]
+        return when (mapped) {
+            DROPDOWN_EMPTY_MARKER -> ""
+            null -> raw
+            else -> mapped
+        }
     }
 
     fun resolveColumnValue(
@@ -126,6 +213,7 @@ class ReportRepository(private val db: AppDatabase) {
             val raw = columnValue(p, customValues, customLabels, key)
             when (fieldType(key, customFields)) {
                 "CHECKBOX" -> interpretCheckbox(raw, col)
+                "DROPDOWN" -> interpretDropdown(raw, col, key)
                 "DATE" -> formatIsoDate(raw, dateFormat)
                 else -> raw
             }
@@ -140,7 +228,7 @@ class ReportRepository(private val db: AppDatabase) {
         return keys.firstOrNull()?.let { columnLabel(it, customFields) } ?: "Колонка"
     }
 
-    suspend fun buildTable(reportId: Long, from: Long, to: Long, dateFormat: String = "dd.MM.yyyy"): Table {
+    suspend fun buildTable(reportId: Long, from: Long, to: Long, dateFormat: String = "dd.MM.yyyy", withNumber: Boolean = false): Table {
         val report = reportDao.getWithFilters(reportId) ?: return Table(emptyList(), emptyList())
         val all = patientDao.getAllPatientsWithValues()
         val customFields = patientDao.getAllCustomFields()
@@ -164,16 +252,19 @@ class ReportRepository(private val db: AppDatabase) {
             if (ad.isBlank()) false else (isoFmt.parse(ad)?.time ?: 0L) in from..to
         }
 
-        val headers = listOf("№") + report.columns.map { resolveColumnHeader(it, customFields) }
+        val headers = if (withNumber) listOf("№") + report.columns.map { resolveColumnHeader(it, customFields) }
+        else report.columns.map { resolveColumnHeader(it, customFields) }
+        val colAligns = (if (withNumber) listOf("CENTER") else emptyList()) + report.columns.map { it.align.ifBlank { "LEFT" } }
         val rows = inPeriod.mapIndexed { idx, pw ->
             val cvMap = pw.customValues.associate { it.fieldId to it.value }
-            val row = mutableListOf((idx + 1).toString())
+            val row = mutableListOf<String>()
+            if (withNumber) row.add((idx + 1).toString())
             report.columns.forEach { col ->
                 row.add(resolveColumnValue(col, pw.patient, cvMap, customLabels, customFields, dateFormat))
             }
             row
         }
-        return Table(headers, rows)
+        return Table(headers, rows, colAligns)
     }
 
     private fun evaluateFilter(pw: PatientWithValues, filter: ReportFilterEntity, customFields: List<PatientCustomFieldEntity>): Boolean {
@@ -181,3 +272,32 @@ class ReportRepository(private val db: AppDatabase) {
         return passes(value, filter.operator, filter.value)
     }
 }
+
+internal fun parseDropdownMap(s: String): Map<String, String> {
+    if (s.isBlank()) return emptyMap()
+    val out = mutableMapOf<String, String>()
+    s.split(";").forEach { entry ->
+        if (entry.isBlank()) return@forEach
+        when {
+            entry.contains("#") -> {
+                val h = entry.indexOf("#")
+                val fk = entry.substring(0, h)
+                val rest = entry.substring(h + 1)
+                val eq = rest.indexOf("=")
+                if (eq > 0) out["$fk#${rest.substring(0, eq)}"] = rest.substring(eq + 1)
+            }
+            entry.contains("::") -> {
+                val idx = entry.indexOf("::")
+                if (idx > 0) out[entry.substring(0, idx)] = entry.substring(idx + 2)
+            }
+            entry.contains("=") -> {
+                val idx = entry.indexOf("=")
+                if (idx > 0) out[entry.substring(0, idx)] = entry.substring(idx + 1)
+            }
+        }
+    }
+    return out
+}
+
+internal fun serializeDropdownMap(m: Map<String, String>): String =
+    m.entries.joinToString(";") { "${it.key}=${it.value}" }

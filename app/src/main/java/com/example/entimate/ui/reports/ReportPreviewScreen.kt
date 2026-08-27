@@ -3,7 +3,9 @@ package com.example.entimate.ui.reports
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.widget.DatePicker
+import androidx.compose.foundation.background
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,10 +13,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +31,7 @@ import com.example.entimate.viewmodel.ReportsViewModel
 import com.example.entimate.viewmodel.SettingsViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +54,7 @@ fun ReportPreviewScreen(
     var table by remember { mutableStateOf<ReportRepository.Table?>(null) }
     var format by remember { mutableStateOf("XLSX") }
     var reportName by remember { mutableStateOf("report") }
+    var addNumber by remember { mutableStateOf(false) }
 
     fun showDatePicker(initialMillis: Long, onPicked: (Long) -> Unit) {
         val cal = Calendar.getInstance().apply { timeInMillis = initialMillis }
@@ -70,22 +76,24 @@ fun ReportPreviewScreen(
         context.contentResolver.openOutputStream(uri)?.use { os ->
             when (format) {
                 "CSV" -> os.write(ReportExporter.buildCsv(t.headers, t.rows).toByteArray(Charsets.UTF_8))
-                "PDF" -> os.write(ReportExporter.renderPdf(context, t.headers, t.rows))
+                "PDF" -> os.write(ReportExporter.renderPdf(context, t.headers, t.rows, t.colAligns))
                 else -> os.write(ReportExporter.buildXlsx(t.headers, t.rows))
             }
         }
     }
 
-    LaunchedEffect(reportId, periodFrom, periodTo) {
+    val shareLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {}
+
+    LaunchedEffect(reportId, periodFrom, periodTo, addNumber) {
         val report = repo.getReportWithColumns(reportId)
         reportName = report?.report?.name?.ifBlank { "report" } ?: "report"
-        table = repo.buildTable(reportId, periodFrom, periodTo, settings.dateFormat)
+        table = repo.buildTable(reportId, periodFrom, periodTo, settings.dateFormat, withNumber = addNumber)
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Предпросмотр отчёта") },
+                title = { Text("Предпросмотр") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
@@ -93,12 +101,42 @@ fun ReportPreviewScreen(
                 },
                 actions = {
                     IconButton(onClick = {
+                        val t = table ?: return@IconButton
                         val ext = when (format) {
                             "CSV" -> "csv"
                             "PDF" -> "pdf"
                             else -> "xlsx"
                         }
-                        launcher.launch("${reportName}_отчёт.$ext")
+                        val mime = when (format) {
+                            "CSV" -> "text/csv"
+                            "PDF" -> "application/pdf"
+                            else -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        }
+                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                        val fileName = "${reportName}_отчёт_$dateStr.$ext"
+                        val bytes = when (format) {
+                            "CSV" -> ReportExporter.buildCsv(t.headers, t.rows).toByteArray(Charsets.UTF_8)
+                            "PDF" -> ReportExporter.renderPdf(context, t.headers, t.rows, t.colAligns)
+                            else -> ReportExporter.buildXlsx(t.headers, t.rows)
+                        }
+                        val cacheFile = File(context.cacheDir, fileName)
+                        cacheFile.writeBytes(bytes)
+                        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", cacheFile)
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = mime
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        shareLauncher.launch(Intent.createChooser(shareIntent, "Поделиться отчётом"))
+                    }) { Icon(Icons.Filled.Share, contentDescription = "Поделиться") }
+                    IconButton(onClick = {
+                        val ext = when (format) {
+                            "CSV" -> "csv"
+                            "PDF" -> "pdf"
+                            else -> "xlsx"
+                        }
+                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                        launcher.launch("${reportName}_отчёт_$dateStr.$ext")
                     }) { Icon(Icons.Filled.Save, contentDescription = "Сохранить") }
                 },
             )
@@ -127,6 +165,12 @@ fun ReportPreviewScreen(
                 FilterChip(selected = format == "PDF", onClick = { format = "PDF" }, label = { Text("PDF") })
             }
             Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = addNumber, onCheckedChange = { addNumber = it })
+                Spacer(Modifier.width(6.dp))
+                Text("Добавить столбец № (нумерация)", style = MaterialTheme.typography.labelMedium)
+            }
+            Spacer(Modifier.height(4.dp))
             when {
                 table == null -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }

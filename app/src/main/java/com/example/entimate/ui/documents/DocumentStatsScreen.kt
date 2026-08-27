@@ -2,6 +2,7 @@ package com.example.entimate.ui.documents
 
 import android.content.Context
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,20 +19,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.DocumentChangeEntity
 import com.example.entimate.data.local.DocumentEntity
+import com.example.entimate.viewmodel.SettingsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val DATE_FMT = SimpleDateFormat("dd.MM.yyyy HH:mm:ss.SSS", Locale.getDefault())
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DocumentStatsScreen(nav: NavController, docId: Long) {
+fun DocumentStatsScreen(nav: NavController, docId: Long, settingsVm: SettingsViewModel = viewModel()) {
     val app = (LocalContext.current.applicationContext as EntimateApplication)
+    val settings by settingsVm.settings.collectAsStateWithLifecycle()
+    val dateFmt = remember(settings.dateFormat) { SimpleDateFormat(settings.dateFormat + " HH:mm", Locale.getDefault()) }
     val changes by app.documentRepository.changesFlow(docId).collectAsStateWithLifecycle(emptyList())
     var doc by remember { mutableStateOf<DocumentEntity?>(null) }
     LaunchedEffect(docId) {
@@ -104,7 +107,12 @@ fun DocumentStatsScreen(nav: NavController, docId: Long) {
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(orderedForList) { change ->
-                        ChangeRow(change, patientName = patientNames[change.patientId])
+                        ChangeRow(
+                            change,
+                            dateFmt = dateFmt,
+                            patientName = patientNames[change.patientId],
+                            onPatientClick = { id -> nav.navigate("patients/edit/$id") },
+                        )
                     }
                 }
             }
@@ -199,24 +207,27 @@ private fun niceCeil(value: Float): Float {
 }
 
 @Composable
-private fun ChangeRow(change: DocumentChangeEntity, patientName: String? = null) {
+private fun ChangeRow(change: DocumentChangeEntity, dateFmt: SimpleDateFormat, patientName: String? = null, onPatientClick: (Long) -> Unit = {}) {
     val positive = change.delta >= 0
     val deltaColor = if (positive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val clickable = change.patientId != 0L
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (clickable) Modifier.clickable { onPatientClick(change.patientId) } else Modifier),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Column {
             Text(
-                text = DATE_FMT.format(Date(change.timestamp)),
+                text = dateFmt.format(Date(change.timestamp)),
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (patientName != null) {
                 Text(
                     text = "Пациент: $patientName",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = if (clickable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                 )
             }
         }

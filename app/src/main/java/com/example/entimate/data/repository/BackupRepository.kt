@@ -24,9 +24,11 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
         val customFields = db.patientDao().getAllCustomFields()
         val customValues = db.patientDao().getAllCustomValues()
         val patientLinks = db.patientDao().getAllLinks()
+        val changes = db.documentDao().getAllChanges()
+        val effects = db.patientDao().getAllEffects()
 
         val root = JSONObject()
-        root.put("version", 2)
+        root.put("version", 3)
         root.put("documents", JSONArray(docs.map {
             JSONObject().apply {
                 put("id", it.id)
@@ -91,6 +93,12 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("name", it.name)
                 put("description", it.description)
                 put("colorArgb", it.colorArgb)
+                put("kind", it.kind)
+                put("sortOrder", it.sortOrder)
+                put("marginTopMm", it.marginTopMm)
+                put("marginRightMm", it.marginRightMm)
+                put("marginBottomMm", it.marginBottomMm)
+                put("marginLeftMm", it.marginLeftMm)
             }
         }))
         root.put("reportColumns", JSONArray(columns.map {
@@ -104,6 +112,8 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("trueText", it.trueText)
                 put("falseText", it.falseText)
                 put("position", it.position)
+                put("align", it.align)
+                put("dropdownMap", it.dropdownMap)
             }
         }))
         root.put("reportFilters", JSONArray(filters.map {
@@ -117,6 +127,50 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("value", it.value)
             }
         }))
+        val reportParagraphs = mutableListOf<JSONObject>()
+        val reportElements = mutableListOf<JSONObject>()
+        for (r in reports) {
+            for (p in db.reportDao().getParagraphs(r.id)) {
+                reportParagraphs.add(JSONObject().apply {
+                    put("id", p.id)
+                    put("reportId", p.reportId)
+                    put("position", p.position)
+                    put("font", p.font)
+                    put("align", p.align)
+                    put("indentLeftMm", p.indentLeftMm)
+                    put("indentRightMm", p.indentRightMm)
+                    put("firstLineMm", p.firstLineMm)
+                    put("lineSpacing", p.lineSpacing)
+                    put("spaceBeforeMm", p.spaceBeforeMm)
+                    put("spaceAfterMm", p.spaceAfterMm)
+                })
+                for (e in db.reportDao().getElements(p.id)) {
+                    reportElements.add(JSONObject().apply {
+                        put("id", e.id)
+                        put("paragraphId", e.paragraphId)
+                        put("position", e.position)
+                        put("type", e.type)
+                        put("text", e.text)
+                        put("bold", e.bold)
+                        put("italic", e.italic)
+                        put("underline", e.underline)
+                        put("size", e.size)
+                        put("colorArgb", e.colorArgb)
+                        put("bgArgb", e.bgArgb)
+                        put("embeddedReportId", e.embeddedReportId)
+                        put("embeddedTitle", e.embeddedTitle)
+                        put("align", e.align)
+                        put("minRows", e.minRows)
+                        put("numberColumn", e.numberColumn)
+                        put("joinPrevious", e.joinPrevious)
+                        put("border", e.border)
+                        put("colWeights", e.colWeights)
+                    })
+                }
+            }
+        }
+        root.put("reportParagraphs", JSONArray(reportParagraphs))
+        root.put("reportElements", JSONArray(reportElements))
         root.put("patients", JSONArray(patients.map {
             JSONObject().apply {
                 put("id", it.id)
@@ -174,6 +228,24 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("amount", it.amount)
             }
         }))
+        root.put("documentChanges", JSONArray(changes.map {
+            JSONObject().apply {
+                put("id", it.id)
+                put("documentId", it.documentId)
+                put("timestamp", it.timestamp)
+                put("delta", it.delta)
+                put("qtyAfter", it.qtyAfter)
+                put("patientId", it.patientId)
+            }
+        }))
+        root.put("patientEffects", JSONArray(effects.map {
+            JSONObject().apply {
+                put("id", it.id)
+                put("patientId", it.patientId)
+                put("documentId", it.documentId)
+                put("netDelta", it.netDelta)
+            }
+        }))
         root.put("settings", JSONObject().apply {
             put("preset", s.preset)
             put("darkMode", s.darkMode)
@@ -187,6 +259,8 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
 
     suspend fun importJson(json: String) = db.withTransaction {
         val root = JSONObject(json)
+        val hasParagraphs = root.has("reportParagraphs")
+        val hasElements = root.has("reportElements")
         db.documentDao().deleteAll()
         db.documentDao().deleteAllChanges()
         db.formDao().deleteAllForms()
@@ -194,7 +268,10 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
         db.formDao().deleteAllLinks()
         db.submissionDao().deleteAll()
         db.reportDao().deleteAll()
+        if (hasParagraphs) db.reportDao().deleteAllParagraphs()
+        if (hasElements) db.reportDao().deleteAllElements()
         db.patientDao().clearEffects()
+        db.documentDao().deleteAllChanges()
 
         val docs = root.optJSONArray("documents")
         if (docs != null) {
@@ -300,7 +377,63 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         id = o.optLong("id", 0),
                         name = o.getString("name"),
                         description = o.optString("description", ""),
-                        colorArgb = o.optInt("colorArgb", 0)
+                        colorArgb = o.optInt("colorArgb", 0),
+                        kind = o.optString("kind", "DOCUMENTS"),
+                        sortOrder = o.optInt("sortOrder", 0),
+                        marginTopMm = o.optDouble("marginTopMm", 25.4).toFloat(),
+                        marginRightMm = o.optDouble("marginRightMm", 25.4).toFloat(),
+                        marginBottomMm = o.optDouble("marginBottomMm", 25.4).toFloat(),
+                        marginLeftMm = o.optDouble("marginLeftMm", 25.4).toFloat(),
+                    )
+                )
+            }
+        }
+        val reportParagraphs = root.optJSONArray("reportParagraphs")
+        if (reportParagraphs != null) {
+            for (i in 0 until reportParagraphs.length()) {
+                val o = reportParagraphs.getJSONObject(i)
+                db.reportDao().insertParagraph(
+                    ReportParagraphEntity(
+                        id = o.optLong("id", 0),
+                        reportId = o.optLong("reportId", 0),
+                        position = o.optInt("position", 0),
+                        font = o.optString("font", "Times New Roman"),
+                        align = o.optString("align", "LEFT"),
+                        indentLeftMm = o.optDouble("indentLeftMm", 0.0).toFloat(),
+                        indentRightMm = o.optDouble("indentRightMm", 0.0).toFloat(),
+                        firstLineMm = o.optDouble("firstLineMm", 0.0).toFloat(),
+                        lineSpacing = o.optDouble("lineSpacing", 1.0).toFloat(),
+                        spaceBeforeMm = o.optDouble("spaceBeforeMm", 0.0).toFloat(),
+                        spaceAfterMm = o.optDouble("spaceAfterMm", 0.0).toFloat(),
+                    )
+                )
+            }
+        }
+        val reportElements = root.optJSONArray("reportElements")
+        if (reportElements != null) {
+            for (i in 0 until reportElements.length()) {
+                val o = reportElements.getJSONObject(i)
+                db.reportDao().insertElement(
+                    ReportDocElementEntity(
+                        id = o.optLong("id", 0),
+                        paragraphId = o.optLong("paragraphId", 0),
+                        position = o.optInt("position", 0),
+                        type = o.optString("type", "TEXT"),
+                        text = o.optString("text", ""),
+                        bold = o.optInt("bold", 0),
+                        italic = o.optInt("italic", 0),
+                        underline = o.optInt("underline", 0),
+                        size = o.optInt("size", 0),
+                        colorArgb = o.optInt("colorArgb", 0),
+                        bgArgb = o.optInt("bgArgb", 0),
+                        embeddedReportId = o.optLong("embeddedReportId", 0),
+                        embeddedTitle = o.optString("embeddedTitle", ""),
+                        align = o.optString("align", "LEFT"),
+                        minRows = o.optInt("minRows", 0),
+                        numberColumn = o.optInt("numberColumn", 0),
+                        joinPrevious = o.optInt("joinPrevious", 0),
+                        border = o.optInt("border", 1),
+                        colWeights = o.optString("colWeights", ""),
                     )
                 )
             }
@@ -319,7 +452,9 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         label = o.optString("label", ""),
                         trueText = o.optString("trueText", ""),
                         falseText = o.optString("falseText", ""),
-                        position = o.optInt("position", 0)
+                        position = o.optInt("position", 0),
+                        align = o.optString("align", "LEFT"),
+                        dropdownMap = o.optString("dropdownMap", ""),
                     )
                 )
             }
@@ -365,7 +500,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         referredBy = o.optString("referredBy", ""),
                         emergency = o.optString("emergency", "Нет"),
                         illnessStart = o.optString("illnessStart", ""),
-                        category = o.optString("category", "По призыву"),
+                        category = o.optString("category", "по призыву"),
                         svo = o.optInt("svo", 0),
                         soch = o.optInt("soch", 0),
                         personalNumber = o.optString("personalNumber", ""),
@@ -418,6 +553,36 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         documentId = o.optLong("documentId", 0),
                         operation = o.optString("operation", "DECREASE"),
                         amount = o.optInt("amount", 0)
+                    )
+                )
+            }
+        }
+        val documentChanges = root.optJSONArray("documentChanges")
+        if (documentChanges != null) {
+            for (i in 0 until documentChanges.length()) {
+                val o = documentChanges.getJSONObject(i)
+                db.documentDao().insertChange(
+                    DocumentChangeEntity(
+                        id = o.optLong("id", 0),
+                        documentId = o.optLong("documentId", 0),
+                        timestamp = o.optLong("timestamp", 0L),
+                        delta = o.optInt("delta", 0),
+                        qtyAfter = o.optInt("qtyAfter", 0),
+                        patientId = o.optLong("patientId", 0),
+                    )
+                )
+            }
+        }
+        val patientEffects = root.optJSONArray("patientEffects")
+        if (patientEffects != null) {
+            for (i in 0 until patientEffects.length()) {
+                val o = patientEffects.getJSONObject(i)
+                db.patientDao().insertEffect(
+                    PatientDocumentEffectEntity(
+                        id = o.optLong("id", 0),
+                        patientId = o.optLong("patientId", 0),
+                        documentId = o.optLong("documentId", 0),
+                        netDelta = o.optInt("netDelta", 0),
                     )
                 )
             }

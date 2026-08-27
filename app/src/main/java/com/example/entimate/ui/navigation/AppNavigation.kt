@@ -29,6 +29,7 @@ import com.example.entimate.ui.patients.CustomFieldsScreen
 import com.example.entimate.ui.reports.ReportsScreen
 import com.example.entimate.ui.reports.ReportPreviewScreen
 import com.example.entimate.ui.reports.ReportEditScreen
+import com.example.entimate.ui.reports.DocumentPreviewScreen
 import com.example.entimate.ui.settings.SettingsScreen
 import com.example.entimate.ui.settings.ThemeSettingsScreen
 import kotlinx.coroutines.launch
@@ -191,6 +192,12 @@ fun AppNavigation() {
                         val from = back.arguments?.getString("from")?.toLongOrNull() ?: 0L
                         val to = back.arguments?.getString("to")?.toLongOrNull() ?: System.currentTimeMillis()
                         ReportPreviewScreen(reportId = id, from = from, to = to, nav = nav)
+                    }
+                    composable("reports/docpreview/{reportId}/{from}/{to}") { back ->
+                        val id = back.arguments?.getString("reportId")?.toLongOrNull() ?: 0L
+                        val from = back.arguments?.getString("from")?.toLongOrNull() ?: 0L
+                        val to = back.arguments?.getString("to")?.toLongOrNull() ?: System.currentTimeMillis()
+                        DocumentPreviewScreen(reportId = id, from = from, to = to, nav = nav)
                     }
                 }
             }

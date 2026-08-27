@@ -8,8 +8,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Help
@@ -18,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -26,7 +27,7 @@ import androidx.navigation.NavController
 import com.example.entimate.data.local.DocumentEntity
 import com.example.entimate.ui.components.LocalTutorial
 import com.example.entimate.ui.components.DocumentCard
-import com.example.entimate.ui.components.rememberReorderState
+import com.example.entimate.ui.components.SwipeableRow
 import com.example.entimate.ui.components.tutorialAnchor
 import com.example.entimate.viewmodel.DocumentsViewModel
 import kotlinx.coroutines.launch
@@ -42,12 +43,6 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
     val tutorial = LocalTutorial.current
 
     val listState = rememberLazyListState()
-    val reorderState = rememberReorderState(
-        lazyListState = listState,
-        items = docs,
-        keyOf = { it.id },
-        onReorder = { from, to -> vm.reorder(from, to) },
-    )
 
     if (pendingDelete != null) {
         AlertDialog(
@@ -94,7 +89,7 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                 actions = {
                     if (reordering) {
                         IconButton(onClick = { reordering = false }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Завершить изменение порядка")
+                            Icon(Icons.Filled.Check, contentDescription = "Завершить изменение порядка")
                         }
                     } else {
                         IconButton(
@@ -146,19 +141,19 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .then(if (reorderState.draggingKey != doc.id) Modifier.animateItem() else Modifier)
-                                .then(reorderState.draggedItemModifier(doc)),
+                                .animateItem(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(
-                                Icons.Filled.DragHandle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .padding(6.dp)
-                                    .then(reorderState.handleModifier(doc)),
-                            )
+                            Column {
+                                IconButton(
+                                    onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
+                                    enabled = index > 0,
+                                ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
+                                IconButton(
+                                    onClick = { if (index < docs.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
+                                    enabled = index < docs.lastIndex,
+                                ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+                            }
                             Box(Modifier.weight(1f)) {
                                 DocumentCard(
                                     doc = doc,
@@ -170,45 +165,31 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                             }
                         }
                     } else {
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            positionalThreshold = { it * 0.85f },
-                            confirmValueChange = { value ->
-                                when (value) {
-                                    SwipeToDismissBoxValue.EndToStart -> { pendingDelete = doc; false }
-                                    SwipeToDismissBoxValue.StartToEnd -> { nav.navigate("documents/edit/${doc.id}"); false }
-                                    else -> false
-                                }
-                            }
-                        )
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            backgroundContent = {
-                                val direction = dismissState.dismissDirection
-                                val bg = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
-                                    else -> Color.Transparent
-                                }
-                                val icon = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> Icons.Filled.Delete
-                                    SwipeToDismissBoxValue.StartToEnd -> Icons.Filled.Edit
-                                    else -> null
-                                }
+                        SwipeableRow(
+                            onSwipeLeft = { pendingDelete = doc },
+                            onSwipeRight = { nav.navigate("documents/edit/${doc.id}") },
+                            backgroundLeft = {
                                 Box(
                                     Modifier
                                         .fillMaxSize()
                                         .clip(MaterialTheme.shapes.medium)
-                                        .background(bg)
+                                        .background(MaterialTheme.colorScheme.errorContainer)
                                         .padding(horizontal = 24.dp),
-                                    contentAlignment = if (direction == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart,
+                                    contentAlignment = Alignment.CenterEnd,
                                 ) {
-                                    icon?.let {
-                                        Icon(
-                                            it,
-                                            contentDescription = null,
-                                            tint = if (direction == SwipeToDismissBoxValue.EndToStart) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
+                                    Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                            backgroundRight = {
+                                Box(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .clip(MaterialTheme.shapes.medium)
+                                        .background(MaterialTheme.colorScheme.primaryContainer)
+                                        .padding(horizontal = 24.dp),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 }
                             },
                         ) {

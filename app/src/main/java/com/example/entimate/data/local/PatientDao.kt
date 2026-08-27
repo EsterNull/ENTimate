@@ -101,4 +101,7 @@ interface PatientDao {
 
     @Query("DELETE FROM patient_document_effects")
     suspend fun clearEffects()
+
+    @Query("SELECT * FROM patient_document_effects ORDER BY id ASC")
+    suspend fun getAllEffects(): List<PatientDocumentEffectEntity>
 }

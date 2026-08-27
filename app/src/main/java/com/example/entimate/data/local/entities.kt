@@ -23,6 +23,10 @@ data class ReportEntity(
     val colorArgb: Int = 0,
     val kind: String = "DOCUMENTS",
     val sortOrder: Int = 0,
+    val marginTopMm: Float = 25.4f,
+    val marginRightMm: Float = 25.4f,
+    val marginBottomMm: Float = 25.4f,
+    val marginLeftMm: Float = 25.4f,
     override var version: Int = CURRENT_DATA_VERSION,
     override var extras: String = "",
 ) : Versioned
@@ -42,6 +46,8 @@ data class ReportColumnEntity(
     val trueText: String = "",
     val falseText: String = "",
     val position: Int = 0,
+    val align: String = "LEFT",
+    val dropdownMap: String = "",
 )
 
 @Entity(
@@ -90,7 +96,7 @@ data class PatientEntity(
     val referredBy: String = "",
     val emergency: String = "Нет",
     val illnessStart: String = "",
-    val category: String = "По призыву",
+    val category: String = "по призыву",
     val svo: Int = 0,
     val soch: Int = 0,
     val discharged: Int = 0,
@@ -168,6 +174,62 @@ data class ReportWithFilters(
     @Embedded val report: ReportEntity,
     @Relation(parentColumn = "id", entityColumn = "reportId") val columns: List<ReportColumnEntity> = emptyList(),
     @Relation(parentColumn = "id", entityColumn = "reportId") val filters: List<ReportFilterEntity> = emptyList(),
+)
+
+@Entity(
+    tableName = "report_paragraphs",
+    foreignKeys = [ForeignKey(entity = ReportEntity::class, parentColumns = ["id"], childColumns = ["reportId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index(value = ["reportId"])],
+)
+data class ReportParagraphEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val reportId: Long,
+    val position: Int = 0,
+    val font: String = "Times New Roman",
+    val align: String = "LEFT",
+    val indentLeftMm: Float = 0f,
+    val indentRightMm: Float = 0f,
+    val firstLineMm: Float = 0f,
+    val lineSpacing: Float = 1f,
+    val spaceBeforeMm: Float = 0f,
+    val spaceAfterMm: Float = 0f,
+)
+
+@Entity(
+    tableName = "report_doc_elements",
+    foreignKeys = [ForeignKey(entity = ReportParagraphEntity::class, parentColumns = ["id"], childColumns = ["paragraphId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index(value = ["paragraphId"])],
+)
+data class ReportDocElementEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val paragraphId: Long,
+    val position: Int = 0,
+    val type: String = "TEXT",
+    val text: String = "",
+    val bold: Int = 0,
+    val italic: Int = 0,
+    val underline: Int = 0,
+    val size: Int = 0,
+    val colorArgb: Int = 0,
+    val bgArgb: Int = 0,
+    val embeddedReportId: Long = 0,
+    val embeddedTitle: String = "",
+    val align: String = "LEFT",
+    val minRows: Int = 0,
+    val numberColumn: Int = 0,
+    val joinPrevious: Int = 0,
+    val border: Int = 1,
+    val colWeights: String = "",
+)
+
+data class ReportParagraphWithElements(
+    @Embedded val paragraph: ReportParagraphEntity,
+    @Relation(parentColumn = "id", entityColumn = "paragraphId", entity = ReportDocElementEntity::class) val elements: List<ReportDocElementEntity> = emptyList(),
+)
+
+data class ReportWithDocument(
+    @Embedded val report: ReportEntity,
+    @Relation(parentColumn = "id", entityColumn = "reportId", entity = ReportParagraphEntity::class) val paragraphs: List<ReportParagraphWithElements> = emptyList(),
 )
 
 @Entity(tableName = "forms")

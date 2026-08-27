@@ -44,7 +44,7 @@ fun CustomFieldsScreen(nav: NavController) {
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()).imePadding()) {
             Text(
                 "Добавляйте свои поля пациента (текст, число, дата, список, чекбокс). " +
                     "Они появляются в карточке пациента и могут использоваться в отчётах и связях с документами.",

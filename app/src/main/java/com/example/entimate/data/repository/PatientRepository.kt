@@ -30,7 +30,7 @@ class PatientRepository(private val db: AppDatabase) {
         val id = if (toSave.id == 0L) {
             patientDao.insertPatient(toSave)
         } else {
-            revertEffects(toSave.id)
+            revertEffects(toSave.id, recordStats = true)
             patientDao.updatePatient(toSave)
             toSave.id
         }
@@ -45,12 +45,31 @@ class PatientRepository(private val db: AppDatabase) {
     }
 
     suspend fun deletePatient(patient: PatientEntity) = db.withTransaction {
-        revertEffects(patient.id)
+        revertEffects(patient.id, recordStats = true)
         patientDao.deletePatient(patient)
     }
 
     suspend fun dischargePatient(patient: PatientEntity) = db.withTransaction {
         patientDao.updatePatient(patient.copy(discharged = 1))
+    }
+
+    suspend fun reregisterPatient(old: PatientEntity, admissionDate: String): Long = db.withTransaction {
+        patientDao.updatePatient(old.copy(discharged = 1))
+        val oldValues = patientDao.getCustomValues(old.id)
+        val fresh = old.copy(
+            id = 0,
+            admissionDate = admissionDate,
+            illnessStart = admissionDate,
+            referredBy = "",
+            discharged = 0,
+            createdAt = System.currentTimeMillis(),
+            sortOrder = patientDao.getMaxSortOrder() + 1,
+            version = CURRENT_DATA_VERSION,
+        )
+        val id = patientDao.insertPatient(fresh)
+        oldValues.forEach { v -> patientDao.insertCustomValue(v.copy(id = 0, patientId = id)) }
+        applyEffects(id, recordStats = true)
+        id
     }
 
     suspend fun saveCustomField(f: PatientCustomFieldEntity): Long {
@@ -153,9 +172,23 @@ class PatientRepository(private val db: AppDatabase) {
         }
     }
 
-    private suspend fun revertEffects(patientId: Long) {
+    private suspend fun revertEffects(patientId: Long, recordStats: Boolean = false) {
         val effects = patientDao.getEffects(patientId)
-        for (e in effects) documentDao.addQuantity(e.documentId, -e.netDelta)
+        for (e in effects) {
+            documentDao.addQuantity(e.documentId, -e.netDelta)
+            if (recordStats) {
+                val qty = documentDao.getById(e.documentId)?.quantity ?: 0
+                documentDao.insertChange(
+                    DocumentChangeEntity(
+                        documentId = e.documentId,
+                        timestamp = System.currentTimeMillis(),
+                        delta = -e.netDelta,
+                        qtyAfter = qty,
+                        patientId = patientId,
+                    )
+                )
+            }
+        }
         patientDao.deleteEffects(patientId)
     }
 }

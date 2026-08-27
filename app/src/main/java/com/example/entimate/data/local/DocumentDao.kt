@@ -41,6 +41,9 @@ interface DocumentDao {
     @Query("DELETE FROM document_changes")
     suspend fun deleteAllChanges()
 
+    @Query("SELECT * FROM document_changes ORDER BY id ASC")
+    suspend fun getAllChanges(): List<DocumentChangeEntity>
+
     @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM documents")
     suspend fun getMaxOrder(): Int
 

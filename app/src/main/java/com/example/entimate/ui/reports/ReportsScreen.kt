@@ -12,11 +12,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,14 +30,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.example.entimate.ui.components.LocalTutorial
 import com.example.entimate.ui.components.colorLuminance
-import com.example.entimate.ui.components.rememberReorderState
 import com.example.entimate.ui.components.tutorialAnchor
+import com.example.entimate.ui.components.SwipeableRow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.entimate.data.local.ReportWithColumns
 import com.example.entimate.viewmodel.ReportsViewModel
+import com.example.entimate.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -43,6 +47,8 @@ import java.util.*
 @Composable
 fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
     val reports by vm.reports.collectAsStateWithLifecycle()
+    val settingsVm: SettingsViewModel = viewModel()
+    val settings by settingsVm.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val app = context.applicationContext as com.example.entimate.EntimateApplication
@@ -57,26 +63,20 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
     var toMillis by remember { mutableStateOf(System.currentTimeMillis()) }
 
     val listState = rememberLazyListState()
-    val reorderState = rememberReorderState(
-        lazyListState = listState,
-        items = reports,
-        keyOf = { it.report.id },
-        onReorder = { from, to -> vm.reorder(from, to) },
-    )
 
     if (generateTarget != null) {
-        val fmt = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+        val fmt = SimpleDateFormat(settings.dateFormat, Locale.getDefault())
         AlertDialog(
             onDismissRequest = { generateTarget = null },
             title = { Text("Сформировать отчёт") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Период")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         val now = System.currentTimeMillis()
-                        OutlinedButton(onClick = { fromMillis = now - 7L * 24 * 60 * 60 * 1000; toMillis = now }, modifier = Modifier.weight(1f)) { Text("За неделю") }
-                        OutlinedButton(onClick = { fromMillis = now - 30L * 24 * 60 * 60 * 1000; toMillis = now }, modifier = Modifier.weight(1f)) { Text("За месяц") }
-                        OutlinedButton(onClick = { fromMillis = 0L; toMillis = now }, modifier = Modifier.weight(1f)) { Text("За всё время") }
+                        OutlinedButton(onClick = { fromMillis = now - 7L * 24 * 60 * 60 * 1000; toMillis = now }, modifier = Modifier.fillMaxWidth()) { Text("За неделю") }
+                        OutlinedButton(onClick = { fromMillis = now - 30L * 24 * 60 * 60 * 1000; toMillis = now }, modifier = Modifier.fillMaxWidth()) { Text("За месяц") }
+                        OutlinedButton(onClick = { fromMillis = 0L; toMillis = now }, modifier = Modifier.fillMaxWidth()) { Text("За всё время") }
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(onClick = {
@@ -102,7 +102,8 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
                 TextButton(onClick = {
                     val target = generateTarget!!
                     generateTarget = null
-                    nav.navigate("reports/preview/${target.report.id}/$fromMillis/$toMillis")
+                    val base = if (target.report.kind == "DOCUMENT") "reports/docpreview/${target.report.id}" else "reports/preview/${target.report.id}"
+                    nav.navigate("$base/$fromMillis/$toMillis")
                 }) { Text("Сформировать") }
             },
             dismissButton = { TextButton(onClick = { generateTarget = null }) { Text("Отмена") } },
@@ -151,7 +152,7 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
                 actions = {
                     if (reordering) {
                         IconButton(onClick = { reordering = false }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Завершить изменение порядка")
+                            Icon(Icons.Filled.Check, contentDescription = "Завершить изменение порядка")
                         }
                     } else {
                         IconButton(onClick = { tutorial?.start() }) {
@@ -185,73 +186,58 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .then(if (reorderState.draggingKey != r.report.id) Modifier.animateItem() else Modifier)
-                                .then(reorderState.draggedItemModifier(r)),
+                                .animateItem(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(
-                                Icons.Filled.DragHandle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .padding(6.dp)
-                                    .then(reorderState.handleModifier(r)),
-                            )
+                            Column {
+                                IconButton(
+                                    onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
+                                    enabled = index > 0,
+                                ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
+                                IconButton(
+                                    onClick = { if (index < reports.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
+                                    enabled = index < reports.lastIndex,
+                                ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+                            }
                             Box(Modifier.weight(1f)) {
                                 ReportCard(
                                     report = r,
                                     onGenerate = {},
+                                    onClick = {},
                                     onLongClick = {},
                                 )
                             }
                         }
                     } else {
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            positionalThreshold = { it * 0.85f },
-                            confirmValueChange = { value ->
-                                when (value) {
-                                    SwipeToDismissBoxValue.EndToStart -> { pendingDelete = r; false }
-                                    SwipeToDismissBoxValue.StartToEnd -> { nav.navigate("reports/edit/${r.report.id}"); false }
-                                    else -> false
-                                }
-                            }
-                        )
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            backgroundContent = {
-                                val direction = dismissState.dismissDirection
-                                val bg = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
-                                    else -> Color.Transparent
-                                }
-                                val icon = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> Icons.Filled.Delete
-                                    SwipeToDismissBoxValue.StartToEnd -> Icons.Filled.Edit
-                                    else -> null
-                                }
+                        SwipeableRow(
+                            onSwipeLeft = { pendingDelete = r },
+                            onSwipeRight = { nav.navigate("reports/edit/${r.report.id}") },
+                            backgroundLeft = {
                                 Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .clip(MaterialTheme.shapes.medium)
-                                        .background(bg)
-                                        .padding(horizontal = 24.dp),
-                                    contentAlignment = if (direction == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart,
-                                ) {
-                                    icon?.let {
-                                        Icon(
-                                            it,
-                                            contentDescription = null,
-                                            tint = if (direction == SwipeToDismissBoxValue.EndToStart) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
-                                }
+                                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
+                                    contentAlignment = Alignment.CenterEnd,
+                                ) { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                            },
+                            backgroundRight = {
+                                Box(
+                                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 24.dp),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) { Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                             },
                         ) {
                             ReportCard(
                                 report = r,
-                                onGenerate = { fromMillis = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000; toMillis = System.currentTimeMillis(); generateTarget = r },
+                                onGenerate = {
+                                    fromMillis = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+                                    toMillis = System.currentTimeMillis()
+                                    generateTarget = r
+                                },
+                                onClick = {
+                                    val now = System.currentTimeMillis()
+                                    val weekAgo = now - 7L * 24 * 60 * 60 * 1000
+                                    val base = if (r.report.kind == "DOCUMENT") "reports/docpreview/${r.report.id}" else "reports/preview/${r.report.id}"
+                                    nav.navigate("$base/$weekAgo/$now")
+                                },
                                 onLongClick = { pendingDup = r },
                             )
                         }
@@ -267,6 +253,7 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
 private fun ReportCard(
     report: ReportWithColumns,
     onGenerate: () -> Unit,
+    onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
 ) {
     val colorArgb = report.report.colorArgb
@@ -277,10 +264,10 @@ private fun ReportCard(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Card(modifier = Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = onLongClick), colors = CardDefaults.cardColors(containerColor = bg, contentColor = onBg)) {
+    Card(modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick), colors = CardDefaults.cardColors(containerColor = bg, contentColor = onBg)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.TableChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(if (report.report.kind == "DOCUMENT") Icons.Filled.Description else Icons.Filled.TableChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Text(report.report.name.ifBlank { "Без названия" }, style = MaterialTheme.typography.titleMedium, color = onBg)
             }

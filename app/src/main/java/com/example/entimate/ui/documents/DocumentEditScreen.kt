@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.DocumentEntity
+import com.example.entimate.data.local.CURRENT_DATA_VERSION
 import com.example.entimate.ui.components.ColorRow
 import com.example.entimate.ui.components.TextKeyboardOptions
 import kotlinx.coroutines.launch
@@ -47,6 +48,9 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
     var nameError by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(docId == 0L) }
     var originalQuantity by remember { mutableStateOf(0) }
+    var originalSortOrder by remember { mutableIntStateOf(0) }
+    var originalVersion by remember { mutableIntStateOf(CURRENT_DATA_VERSION) }
+    var originalExtras by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
@@ -59,6 +63,9 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 quantity = it.quantity.toString()
                 originalQuantity = it.quantity
                 step = it.step.toString()
+                originalSortOrder = it.sortOrder
+                originalVersion = it.version
+                originalExtras = it.extras
             }
             loaded = true
         }
@@ -87,6 +94,9 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                                     colorArgb = color,
                                     quantity = quantity.toIntOrNull() ?: 0,
                                     step = step.toIntOrNull() ?: 1,
+                                    sortOrder = originalSortOrder,
+                                    version = originalVersion,
+                                    extras = originalExtras,
                                 )
                                 if (docId == 0L) {
                                     val newId = repo.insert(doc.copy(id = 0))
@@ -120,7 +130,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState()).imePadding(),
         ) {
             OutlinedTextField(
                 value = name,

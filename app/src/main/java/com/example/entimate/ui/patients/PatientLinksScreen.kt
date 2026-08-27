@@ -54,7 +54,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()).imePadding(),
         ) {
             Text(
                 "Настройте, как значения полей пациента влияют на количество документов. " +

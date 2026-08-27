@@ -38,7 +38,7 @@ val PATIENT_FIELDS: List<PatientFieldDef> = listOf(
     PatientFieldDef("referredBy", "Кем направлен больной", "TEXT", false, false),
     PatientFieldDef("emergency", "Доставлен по экстренным показаниям", "SWITCH", false, false),
     PatientFieldDef("illnessStart", "Начало заболевания, травмы", "DATE", false, false),
-    PatientFieldDef("category", "Категория", "DROPDOWN", true, true, "По призыву,по контракту,по мобилизации,военные сборы"),
+    PatientFieldDef("category", "Категория", "DROPDOWN", true, true, "по призыву,по контракту,по мобилизации,военные сборы,курсант,курсант-контрактник,абитуриент"),
     PatientFieldDef("personalNumber", "Личный номер", "TEXT", false, true),
     PatientFieldDef("svo", "СВО", "CHECKBOX", false, true),
     PatientFieldDef("soch", "СОЧ", "CHECKBOX", false, true),

@@ -61,4 +61,53 @@ interface ReportDao {
 
     @Query("SELECT * FROM report_filters")
     suspend fun getAllFilters(): List<ReportFilterEntity>
+
+    @Transaction
+    @Query("SELECT * FROM reports WHERE id = :id")
+    suspend fun getWithDocument(id: Long): ReportWithDocument?
+
+    @Query("SELECT * FROM report_paragraphs WHERE reportId = :reportId ORDER BY position ASC")
+    suspend fun getParagraphs(reportId: Long): List<ReportParagraphEntity>
+
+    @Query("SELECT * FROM report_doc_elements WHERE paragraphId = :paragraphId ORDER BY position ASC")
+    suspend fun getElements(paragraphId: Long): List<ReportDocElementEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertParagraph(p: ReportParagraphEntity): Long
+
+    @Update
+    suspend fun updateParagraph(p: ReportParagraphEntity)
+
+    @Delete
+    suspend fun deleteParagraph(p: ReportParagraphEntity)
+
+    @Query("DELETE FROM report_paragraphs WHERE reportId = :reportId")
+    suspend fun deleteParagraphsForReport(reportId: Long)
+
+    @Query("DELETE FROM report_paragraphs")
+    suspend fun deleteAllParagraphs()
+
+    @Query("DELETE FROM report_doc_elements")
+    suspend fun deleteAllElements()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertElement(e: ReportDocElementEntity): Long
+
+    @Update
+    suspend fun updateElement(e: ReportDocElementEntity)
+
+    @Delete
+    suspend fun deleteElement(e: ReportDocElementEntity)
+
+    @Query("DELETE FROM report_doc_elements WHERE paragraphId = :paragraphId")
+    suspend fun deleteElementsForParagraph(paragraphId: Long)
+
+    @Query("DELETE FROM report_doc_elements WHERE paragraphId IN (SELECT id FROM report_paragraphs WHERE reportId = :reportId)")
+    suspend fun deleteElementsForReport(reportId: Long)
+
+    @Query("SELECT * FROM reports WHERE kind != 'DOCUMENT' ORDER BY sortOrder ASC, name ASC")
+    suspend fun getTableReports(): List<ReportEntity>
+
+    @Query("SELECT * FROM report_columns WHERE reportId = :reportId ORDER BY position ASC")
+    suspend fun getColumnsForReport(reportId: Long): List<ReportColumnEntity>
 }

@@ -8,7 +8,7 @@ import org.json.JSONObject
  * forward through the chain of registered steps. Unknown/removed fields are
  * kept in [Versioned.extras] so data is never trimmed and lost.
  */
-const val CURRENT_DATA_VERSION = 1
+const val CURRENT_DATA_VERSION = 2
 
 interface Versioned {
     var version: Int
@@ -29,6 +29,13 @@ object DataMigrations {
     }
 
     operator fun get(fromVersion: Int): ((MutableMap<String, String>, MutableMap<String, String>) -> Unit)? = steps[fromVersion]
+
+    init {
+        // v1 -> v2: report schema gained per-side page margins (real columns added via
+        // Room migration 23->24 with defaults). No value transformation needed; this step
+        // exists so the global data-version bump is explicit and forward-compatible.
+        register(1) { _, _ -> }
+    }
 }
 
 private fun parseExtras(json: String): MutableMap<String, String> {
@@ -144,7 +151,7 @@ fun PatientEntity.migrate(): PatientEntity = migrateVersioned(
             referredBy = m["referredBy"] ?: "",
             emergency = m["emergency"] ?: "Нет",
             illnessStart = m["illnessStart"] ?: "",
-            category = m["category"] ?: "По призыву",
+            category = m["category"] ?: "по призыву",
             svo = m["svo"]?.toIntOrNull() ?: 0,
             soch = m["soch"]?.toIntOrNull() ?: 0,
             discharged = m["discharged"]?.toIntOrNull() ?: 0,

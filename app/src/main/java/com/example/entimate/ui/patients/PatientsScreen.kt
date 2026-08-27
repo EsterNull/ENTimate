@@ -1,7 +1,7 @@
 package com.example.entimate.ui.patients
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,8 +9,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Help
@@ -27,19 +29,30 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.entimate.data.local.PatientEntity
 import com.example.entimate.data.local.PatientWithValues
+import com.example.entimate.data.local.PATIENT_FIELDS
+import com.example.entimate.data.local.patientValue
+import com.example.entimate.ui.components.DateField
 import com.example.entimate.ui.components.LocalTutorial
-import com.example.entimate.ui.components.rememberReorderState
+import com.example.entimate.ui.components.SwipeableRow
 import com.example.entimate.ui.components.tutorialAnchor
 import com.example.entimate.viewmodel.PatientsViewModel
+import com.example.entimate.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
     val patients by vm.patients.collectAsStateWithLifecycle()
+    val settingsVm: SettingsViewModel = viewModel()
+    val settings by settingsVm.settings.collectAsStateWithLifecycle()
+    val customFields by vm.customFields.collectAsStateWithLifecycle()
     val activePatients = patients.filter { it.patient.discharged != 1 }
     var pendingDelete by remember { mutableStateOf<PatientWithValues?>(null) }
     var pendingDischarge by remember { mutableStateOf<PatientWithValues?>(null) }
+    var pendingReregister by remember { mutableStateOf<PatientWithValues?>(null) }
+    var dossierPatient by remember { mutableStateOf<PatientWithValues?>(null) }
     var reordering by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val tutorial = LocalTutorial.current
@@ -50,12 +63,6 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
     }
 
     val listState = rememberLazyListState()
-    val reorderState = rememberReorderState(
-        lazyListState = listState,
-        items = activePatients,
-        keyOf = { it.patient.id },
-        onReorder = { from, to -> vm.reorder(from, to) },
-    )
 
     if (pendingDelete != null) {
         AlertDialog(
@@ -92,6 +99,52 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
         )
     }
 
+    if (pendingReregister != null) {
+        val todayStart = remember {
+            Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        }
+        val todayIso = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
+        var reDate by remember(pendingReregister) { mutableStateOf(todayIso) }
+        AlertDialog(
+            onDismissRequest = { pendingReregister = null },
+            title = { Text("Переоформление") },
+            text = {
+                Column {
+                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме даты поступления, начала заболевания/травмы (приравнивается к дате поступления) и поля «Кем направлен больной» (очищается).")
+                    Spacer(Modifier.height(12.dp))
+                    DateField(
+                        value = reDate,
+                        onValueChange = { reDate = it },
+                        label = "Дата поступления",
+                        maxDate = todayStart,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = reDate.isNotBlank(),
+                    onClick = {
+                        vm.reregisterPatient(pendingReregister!!.patient, reDate)
+                        pendingReregister = null
+                    },
+                ) { Text("Переоформить") }
+            },
+            dismissButton = { TextButton(onClick = { pendingReregister = null }) { Text("Отмена") } },
+        )
+    }
+
+    if (dossierPatient != null) {
+        ModalBottomSheet(onDismissRequest = { dossierPatient = null }) {
+            PatientDossierSheet(
+                pw = dossierPatient!!,
+                dateFormat = settings.dateFormat,
+                customFields = customFields,
+            )
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -100,7 +153,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                 actions = {
                     if (reordering) {
                         IconButton(onClick = { reordering = false }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Завершить изменение порядка")
+                            Icon(Icons.Filled.Check, contentDescription = "Завершить изменение порядка")
                         }
                     } else {
                         IconButton(onClick = { tutorial?.start() }) {
@@ -139,64 +192,52 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .then(if (reorderState.draggingKey != pw.patient.id) Modifier.animateItem() else Modifier)
-                                .then(reorderState.draggedItemModifier(pw)),
+                                .animateItem(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(
-                                Icons.Filled.DragHandle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .padding(6.dp)
-                                    .then(reorderState.handleModifier(pw)),
-                            )
+                            Column {
+                                IconButton(
+                                    onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
+                                    enabled = index > 0,
+                                ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
+                                IconButton(
+                                    onClick = { if (index < activePatients.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
+                                    enabled = index < activePatients.lastIndex,
+                                ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+                            }
                             Box(Modifier.weight(1f)) {
                                 PatientCard(
                                     p = pw.patient,
+                                    dateFormat = settings.dateFormat,
                                     onClick = {},
                                     onDischarge = {},
+                                    onReregister = {},
                                 )
                             }
                         }
                     } else {
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            positionalThreshold = { it * 0.85f },
-                            confirmValueChange = { value ->
-                                when (value) {
-                                    SwipeToDismissBoxValue.EndToStart -> { pendingDelete = pw; false }
-                                    SwipeToDismissBoxValue.StartToEnd -> { nav.navigate("patients/edit/${pw.patient.id}"); false }
-                                    else -> false
-                                }
-                            }
-                        )
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            backgroundContent = {
-                                val direction = dismissState.dismissDirection
-                                val bg = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
-                                    else -> Color.Transparent
-                                }
-                                val icon = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> Icons.Filled.Delete
-                                    SwipeToDismissBoxValue.StartToEnd -> Icons.Filled.Edit
-                                    else -> null
-                                }
+                        SwipeableRow(
+                            onSwipeLeft = { pendingDelete = pw },
+                            onSwipeRight = { nav.navigate("patients/edit/${pw.patient.id}") },
+                            backgroundLeft = {
                                 Box(
-                                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(bg).padding(horizontal = 24.dp),
-                                    contentAlignment = if (direction == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart,
-                                ) {
-                                    icon?.let { Icon(it, contentDescription = null, tint = if (direction == SwipeToDismissBoxValue.EndToStart) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
-                                }
+                                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
+                                    contentAlignment = Alignment.CenterEnd,
+                                ) { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                            },
+                            backgroundRight = {
+                                Box(
+                                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 24.dp),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) { Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                             },
                         ) {
                             PatientCard(
                                 p = pw.patient,
-                                onClick = { },
+                                dateFormat = settings.dateFormat,
+                                onClick = { dossierPatient = pw },
                                 onDischarge = { pendingDischarge = pw },
+                                onReregister = { pendingReregister = pw },
                             )
                         }
                     }
@@ -207,10 +248,19 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
 }
 
 @Composable
-private fun PatientCard(p: PatientEntity, onClick: () -> Unit, onDischarge: () -> Unit) {
+private fun PatientCard(p: PatientEntity, dateFormat: String = "dd.MM.yyyy", onClick: () -> Unit, onDischarge: () -> Unit, onReregister: () -> Unit = {}) {
     val fio = listOf(p.lastName, p.firstName, p.middleName).filter { it.isNotBlank() }.joinToString(" ")
+    val formattedAdmission = remember(p.admissionDate, dateFormat) {
+        if (p.admissionDate.isNotBlank()) {
+            try {
+                val isoFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val displayFmt = SimpleDateFormat(dateFormat, Locale.getDefault())
+                isoFmt.parse(p.admissionDate)?.let { displayFmt.format(it) } ?: p.admissionDate
+            } catch (_: Exception) { p.admissionDate }
+        } else ""
+    }
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onReregister),
         colors = CardDefaults.cardColors(containerColor = if (p.colorArgb != 0) Color(p.colorArgb) else MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(Modifier.padding(16.dp)) {
@@ -228,9 +278,9 @@ private fun PatientCard(p: PatientEntity, onClick: () -> Unit, onDischarge: () -
             if (details.isNotBlank()) {
                 Text(details, style = MaterialTheme.typography.bodyMedium)
             }
-            if (p.admissionDate.isNotBlank()) {
+            if (formattedAdmission.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
-                Text("Поступление: ${p.admissionDate}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                Text("Поступление: $formattedAdmission", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -240,5 +290,65 @@ private fun PatientCard(p: PatientEntity, onClick: () -> Unit, onDischarge: () -
                 ) { Text("Выписать") }
             }
         }
+    }
+}
+
+@Composable
+private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, customFields: List<com.example.entimate.data.local.PatientCustomFieldEntity>) {
+    val p = pw.patient
+    val fio = listOf(p.lastName, p.firstName, p.middleName).filter { it.isNotBlank() }.joinToString(" ")
+    val dateKeys = setOf("birthDate", "serviceDate", "admissionDate", "illnessStart")
+    val displayFmt = remember(dateFormat) { SimpleDateFormat(dateFormat, Locale.getDefault()) }
+    val isoFmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+    val customMap = remember(pw.customValues) { pw.customValues.associateBy { it.fieldId } }
+
+    fun formatVal(key: String, raw: String): String {
+        if (raw.isBlank()) return ""
+        if (key in dateKeys) {
+            return try { isoFmt.parse(raw)?.let { displayFmt.format(it) } ?: raw } catch (_: Exception) { raw }
+        }
+        if (key == "svo" || key == "soch") return if (raw == "true") "Да" else "Нет"
+        return raw
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+    ) {
+        if (fio.isNotBlank()) {
+            Text(fio, style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(4.dp))
+        }
+        val mainNumber = listOf(p.rank, p.unit).filter { it.isNotBlank() }.joinToString(" · ")
+        if (mainNumber.isNotBlank()) {
+            Text(mainNumber, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.height(12.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+
+        PATIENT_FIELDS.forEach { def ->
+            val raw = patientValue(p, def.key)
+            val display = formatVal(def.key, raw)
+            if (display.isNotBlank()) {
+                DossierRow(label = def.label, value = display)
+            }
+        }
+
+        customFields.forEach { cf ->
+            val raw = customMap[cf.id]?.value ?: ""
+            if (raw.isNotBlank()) {
+                DossierRow(label = cf.label, value = raw)
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun DossierRow(label: String, value: String) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }

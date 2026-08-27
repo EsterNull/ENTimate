@@ -4,8 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.entimate.EntimateApplication
-import com.example.entimate.data.local.ReportEntity
+import com.example.entimate.data.local.*
 import com.example.entimate.data.repository.ReportRepository
+import com.example.entimate.ui.reports.DocumentRenderer
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -32,4 +33,23 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     }
 
     suspend fun duplicateReport(reportId: Long): Long = repo.duplicateReport(reportId)
+
+    suspend fun getReportWithDocument(id: Long) = repo.getReportWithDocument(id)
+    suspend fun tableReports(): List<ReportEntity> = repo.tableReports()
+    suspend fun reportColumns(reportId: Long): List<ReportColumnEntity> = repo.getColumnsForReport(reportId)
+    suspend fun buildDocModel(reportId: Long, dateFormat: String = "dd.MM.yyyy", from: Long = 0L, to: Long = System.currentTimeMillis()) = repo.buildDocModel(reportId, dateFormat, from, to)
+
+    fun saveDocumentReport(
+        report: ReportEntity,
+        blocks: List<Pair<ReportParagraphEntity, List<ReportDocElementEntity>>>,
+    ) = viewModelScope.launch { repo.saveDocumentReport(report, blocks) }
+
+    suspend fun saveDocumentReportSuspended(
+        report: ReportEntity,
+        blocks: List<Pair<ReportParagraphEntity, List<ReportDocElementEntity>>>,
+    ): Long = repo.saveDocumentReport(report, blocks)
+
+    fun buildRtf(doc: DocDocument): ByteArray = DocumentRenderer.buildRtf(doc)
+    fun buildDocx(doc: DocDocument): ByteArray = DocumentRenderer.buildDocx(doc)
+    fun buildPdf(doc: DocDocument): ByteArray = DocumentRenderer.buildPdf(getApplication(), doc)
 }

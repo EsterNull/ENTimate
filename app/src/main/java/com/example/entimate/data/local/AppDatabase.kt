@@ -23,6 +23,8 @@ import java.util.Locale
         ReportEntity::class,
         ReportColumnEntity::class,
         ReportFilterEntity::class,
+        ReportParagraphEntity::class,
+        ReportDocElementEntity::class,
         DocumentChangeEntity::class,
         PatientEntity::class,
         PatientCustomFieldEntity::class,
@@ -30,9 +32,9 @@ import java.util.Locale
         PatientFieldLinkEntity::class,
         PatientDocumentEffectEntity::class,
     ],
-    version = 14,
-    exportSchema = false
-)
+        version = 24,
+        exportSchema = false
+    )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun documentDao(): DocumentDao
     abstract fun formDao(): FormDao
@@ -220,13 +222,112 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE report_paragraphs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        reportId INTEGER NOT NULL,
+                        position INTEGER NOT NULL,
+                        font TEXT NOT NULL,
+                        align TEXT NOT NULL,
+                        FOREIGN KEY(reportId) REFERENCES reports(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )"""
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_report_paragraphs_reportId ON report_paragraphs(reportId)")
+
+                db.execSQL(
+                    """CREATE TABLE report_doc_elements (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        paragraphId INTEGER NOT NULL,
+                        position INTEGER NOT NULL,
+                        type TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        bold INTEGER NOT NULL,
+                        italic INTEGER NOT NULL,
+                        underline INTEGER NOT NULL,
+                        size INTEGER NOT NULL,
+                        colorArgb INTEGER NOT NULL,
+                        bgArgb INTEGER NOT NULL,
+                        embeddedReportId INTEGER NOT NULL,
+                        embeddedTitle TEXT NOT NULL,
+                        FOREIGN KEY(paragraphId) REFERENCES report_paragraphs(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )"""
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_report_doc_elements_paragraphId ON report_doc_elements(paragraphId)")
+            }
+        }
+
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_paragraphs ADD COLUMN indentLeftMm REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE report_paragraphs ADD COLUMN indentRightMm REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE report_paragraphs ADD COLUMN firstLineMm REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE report_paragraphs ADD COLUMN lineSpacing REAL NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE report_paragraphs ADD COLUMN spaceBeforeMm REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE report_paragraphs ADD COLUMN spaceAfterMm REAL NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_doc_elements ADD COLUMN align TEXT NOT NULL DEFAULT 'LEFT'")
+            }
+        }
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_doc_elements ADD COLUMN minRows INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE report_doc_elements ADD COLUMN numberColumn INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_doc_elements ADD COLUMN joinPrevious INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_columns ADD COLUMN align TEXT NOT NULL DEFAULT 'LEFT'")
+            }
+        }
+
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_columns ADD COLUMN dropdownMap TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_doc_elements ADD COLUMN border INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_doc_elements ADD COLUMN colWeights TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE reports ADD COLUMN marginTopMm REAL NOT NULL DEFAULT 25.4")
+                db.execSQL("ALTER TABLE reports ADD COLUMN marginRightMm REAL NOT NULL DEFAULT 25.4")
+                db.execSQL("ALTER TABLE reports ADD COLUMN marginBottomMm REAL NOT NULL DEFAULT 25.4")
+                db.execSQL("ALTER TABLE reports ADD COLUMN marginLeftMm REAL NOT NULL DEFAULT 25.4")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "entimate.db"
-                )                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                )                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)

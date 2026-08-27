@@ -58,6 +58,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
     var expandedMore by remember { mutableStateOf(false) }
     var createdAt by remember { mutableStateOf(0L) }
     var existingId by remember { mutableStateOf(0L) }
+    var existingPatient by remember { mutableStateOf<PatientEntity?>(null) }
     val birthMaxDate = remember {
         Calendar.getInstance().apply {
             add(Calendar.YEAR, -18)
@@ -88,6 +89,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             val pw = repo.getPatient(patientId)
             if (pw != null) {
                 existingId = pw.patient.id
+                existingPatient = pw.patient
                 createdAt = pw.patient.createdAt
                 PATIENT_FIELDS.forEach { def ->
                     values[def.key] = when (def.key) {
@@ -104,7 +106,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             values["sex"] = "М"
             values["emergency"] = "Нет"
             values["rank"] = "Рядовой"
-            values["category"] = "По призыву"
+            values["category"] = "по призыву"
             values["personalNumber"] = "-"
             values["number"] = "1"
             values["admissionDate"] = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
@@ -147,11 +149,14 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             referredBy = values["referredBy"] ?: "",
             emergency = values["emergency"] ?: "Нет",
             illnessStart = values["illnessStart"] ?: "",
-            category = values["category"] ?: "По призыву",
+            category = values["category"] ?: "по призыву",
             svo = if (values["svo"] == "true") 1 else 0,
             soch = if (values["soch"] == "true") 1 else 0,
             colorArgb = 0,
             createdAt = if (createdAt == 0L) System.currentTimeMillis() else createdAt,
+            sortOrder = existingPatient?.sortOrder ?: 0,
+            discharged = existingPatient?.discharged ?: 0,
+            version = existingPatient?.version ?: CURRENT_DATA_VERSION,
         )
         scope.launch {
             repo.savePatient(p, customValues.toMap())
@@ -177,7 +182,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             return@Scaffold
         }
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()).imePadding(),
         ) {
             if (showErrors) {
                 Text("Заполните обязательные поля (отмечены *).", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)

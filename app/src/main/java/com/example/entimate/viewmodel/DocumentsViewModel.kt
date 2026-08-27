@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.DocumentEntity
 import com.example.entimate.data.repository.DocumentRepository
+import kotlin.comparisons.compareBy
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -48,7 +49,15 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     suspend fun duplicate(doc: DocumentEntity): Long {
-        val copy = doc.copy(id = 0, name = "${doc.name} (копия)")
-        return repo.insert(copy)
+        val copy = doc.copy(id = 0, name = "${doc.name} (копия)", sortOrder = 0)
+        val newId = repo.insert(copy)
+        val others = repo.getAll()
+            .filter { it.id != newId }
+            .sortedWith(compareBy<DocumentEntity> { it.sortOrder }.thenBy { it.name })
+        val origPos = others.indexOfFirst { it.id == doc.id }.coerceAtLeast(0)
+        val ordered = others.toMutableList()
+        ordered.add(origPos + 1, doc.copy(id = newId, name = copy.name, sortOrder = 0))
+        repo.reorder(ordered.map { it.id })
+        return newId
     }
 }

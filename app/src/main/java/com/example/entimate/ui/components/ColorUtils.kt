@@ -9,7 +9,7 @@ val QUICK_COLORS = listOf(
     0xFFE0AF68.toInt(),
     0xFF9ECE6A.toInt(),
     0xFF7DCFFF.toInt(),
-    0xFF7AA2F7.toInt(),
+    0xFF1E88E5.toInt(),
     0xFF6750A4.toInt(),
     0xFFBB9AF7.toInt(),
 )

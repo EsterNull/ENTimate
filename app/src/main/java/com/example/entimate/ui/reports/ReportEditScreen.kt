@@ -1,6 +1,7 @@
 package com.example.entimate.ui.reports
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -23,6 +24,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.*
+import com.example.entimate.data.repository.parseDropdownMap
+import com.example.entimate.data.repository.serializeDropdownMap
+import com.example.entimate.data.repository.DROPDOWN_EMPTY_MARKER
 import com.example.entimate.ui.components.ColorRow
 import com.example.entimate.ui.components.TextKeyboardOptions
 import com.example.entimate.ui.components.TextKeyboardOptionsDone
@@ -54,7 +58,57 @@ private fun operatorOptions(type: String): List<Pair<String, String>> = when (ty
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReportEditScreen(reportId: Long, nav: NavController) {
+fun ReportEditScreen(reportId: Long, nav: NavController, vm: ReportsViewModel = viewModel()) {
+    val app = LocalContext.current.applicationContext as EntimateApplication
+    val repo = app.reportRepository
+    var chosen by remember { mutableStateOf(if (reportId != 0L) "LOADING" else null) }
+    LaunchedEffect(Unit) {
+        if (reportId != 0L) {
+            val kind = repo.getReportWithColumns(reportId)?.report?.kind
+                ?: repo.getReportWithDocument(reportId)?.report?.kind
+            chosen = if (kind == "DOCUMENT") "DOCUMENT" else "TABLE"
+        }
+    }
+    when {
+        reportId != 0L && chosen == "LOADING" ->
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        reportId == 0L && chosen == null ->
+            ChooserScaffold(nav) { chosen = it }
+        chosen == "DOCUMENT" ->
+            DocumentReportEditor(reportId = reportId, nav = nav)
+        else ->
+            TableReportEditor(reportId = reportId, nav = nav)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChooserScaffold(nav: NavController, onChoose: (String) -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Новый отчёт") },
+                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
+            )
+        },
+    ) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text("Выберите тип отчёта", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = { onChoose("TABLE") }, modifier = Modifier.fillMaxWidth()) { Text("Таблица") }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = { onChoose("DOCUMENT") }, modifier = Modifier.fillMaxWidth()) { Text("Документ") }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TableReportEditor(reportId: Long, nav: NavController) {
     val app = LocalContext.current.applicationContext as EntimateApplication
     val repo = app.reportRepository
     val scope = rememberCoroutineScope()
@@ -125,7 +179,7 @@ fun ReportEditScreen(reportId: Long, nav: NavController) {
             return@Scaffold
         }
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()).imePadding(),
         ) {
             OutlinedTextField(value = name, onValueChange = { name = it.stripNewlines(); nameError = false }, label = { Text("Название") }, isError = nameError, singleLine = true, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth())
             if (nameError) Text("Укажите название и оно не должно повторяться.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
@@ -166,15 +220,65 @@ fun ReportEditScreen(reportId: Long, nav: NavController) {
                                     keyboardOptions = TextKeyboardOptions,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                    OutlinedTextField(
-                        value = col.falseText,
-                        onValueChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(falseText = v.stripNewlines()) } },
-                        label = { Text("Если не отмечено") },
-                        singleLine = true,
-                        keyboardOptions = if (idx == columns.lastIndex) TextKeyboardOptionsDone else TextKeyboardOptions,
-                        keyboardActions = if (idx == columns.lastIndex) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                     OutlinedTextField(
+                         value = col.falseText,
+                         onValueChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(falseText = v.stripNewlines()) } },
+                         label = { Text("Если не отмечено") },
+                         singleLine = true,
+                         keyboardOptions = if (idx == columns.lastIndex) TextKeyboardOptionsDone else TextKeyboardOptions,
+                         keyboardActions = if (idx == columns.lastIndex) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
+                         modifier = Modifier.fillMaxWidth(),
+                     )
+                            }
+                            val dropdownKeys = colKeys.filter { optByKey[it]?.type == "DROPDOWN" }
+                            if (dropdownKeys.isNotEmpty()) {
+                                val map = parseDropdownMap(col.dropdownMap)
+                                Spacer(Modifier.height(6.dp))
+                                Text("Интерпретация значений списка (пустое — как есть):", style = MaterialTheme.typography.labelMedium)
+                                dropdownKeys.forEach { dKey ->
+                                    val fo = optByKey[dKey]
+                                    val opts = fo?.let { optList(it) } ?: emptyList()
+                                    if (opts.isNotEmpty()) {
+                                        if (dropdownKeys.size > 1) {
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(fo?.label ?: dKey, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                                        }
+                                        opts.forEach { opt ->
+                                            val raw = map["$dKey#$opt"]
+                                            val isEmpty = raw == DROPDOWN_EMPTY_MARKER
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                OutlinedTextField(
+                                                    value = if (isEmpty) "" else (raw ?: ""),
+                                                    enabled = !isEmpty,
+                                                    onValueChange = { v ->
+                                                        val nv = v.stripNewlines()
+                                                        val m = parseDropdownMap(col.dropdownMap).toMutableMap()
+                                                        val entryKey = "$dKey#$opt"
+                                                        if (nv.isEmpty()) m.remove(entryKey) else m[entryKey] = nv
+                                                        columns = columns.toMutableList().also { it[idx] = it[idx].copy(dropdownMap = serializeDropdownMap(m)) }
+                                                    },
+                                                    label = { Text(opt) },
+                                                    singleLine = true,
+                                                    keyboardOptions = TextKeyboardOptions,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        val m = parseDropdownMap(col.dropdownMap).toMutableMap()
+                                                        if (raw == DROPDOWN_EMPTY_MARKER) m.remove("$dKey#$opt")
+                                                        else m["$dKey#$opt"] = DROPDOWN_EMPTY_MARKER
+                                                        columns = columns.toMutableList().also { it[idx] = it[idx].copy(dropdownMap = serializeDropdownMap(m)) }
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                                                    border = BorderStroke(1.dp, if (isEmpty) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+                                                ) {
+                                                    Text("Пустая", style = MaterialTheme.typography.labelSmall, color = if (isEmpty) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -370,12 +474,31 @@ private fun AddColumnDialog(
     var selected by remember { mutableStateOf(initialKeys.toSet()) }
     var separator by remember { mutableStateOf(initial?.joinSeparator ?: " ") }
     var label by remember { mutableStateOf(initial?.label ?: "") }
+    var align by remember { mutableStateOf(initial?.align ?: "LEFT") }
     val focusManager = LocalFocusManager.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column(Modifier.verticalScroll(rememberScrollState()).imePadding()) {
+                OutlinedTextField(value = label, onValueChange = { label = it.stripNewlines() }, label = { Text("Заголовок (необязательно)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = separator, onValueChange = { separator = it.stripNewlines() }, label = { Text("Разделитель") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptionsDone, keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }))
+                Spacer(Modifier.height(8.dp))
+                var alignExpanded by remember { mutableStateOf(false) }
+                val alignOptions = listOf("LEFT" to "По левому краю", "CENTER" to "По центру", "RIGHT" to "По правому краю")
+                ExposedDropdownMenuBox(expanded = alignExpanded, onExpandedChange = { alignExpanded = it }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = alignOptions.firstOrNull { it.first == align }?.second ?: "По левому краю",
+                        onValueChange = {}, readOnly = true, label = { Text("Выравнивание значений столбца") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = alignExpanded) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(expanded = alignExpanded, onDismissRequest = { alignExpanded = false }) {
+                        alignOptions.forEach { o -> DropdownMenuItem(text = { Text(o.second) }, onClick = { align = o.first; alignExpanded = false }) }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 Text("Поля (можно выбрать несколько для объединения):", style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.height(4.dp))
                 fieldOpts.forEach { fo ->
@@ -385,9 +508,6 @@ private fun AddColumnDialog(
                         Text(fo.label)
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = separator, onValueChange = { separator = it.stripNewlines() }, label = { Text("Разделитель") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
-                OutlinedTextField(value = label, onValueChange = { label = it.stripNewlines() }, label = { Text("Заголовок (необязательно)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptionsDone, keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }))
             }
         },
         confirmButton = {
@@ -404,6 +524,7 @@ private fun AddColumnDialog(
                             label = label.trim(),
                             trueText = initial?.trueText ?: "",
                             falseText = initial?.falseText ?: "",
+                            align = align,
                             position = initial?.position ?: 0,
                         )
                     )
