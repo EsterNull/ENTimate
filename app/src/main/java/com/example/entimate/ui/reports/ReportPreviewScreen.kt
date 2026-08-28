@@ -54,7 +54,8 @@ fun ReportPreviewScreen(
     var table by remember { mutableStateOf<ReportRepository.Table?>(null) }
     var format by remember { mutableStateOf("XLSX") }
     var reportName by remember { mutableStateOf("report") }
-    var addNumber by remember { mutableStateOf(false) }
+    var addNumber by remember { mutableStateOf(true) }
+    var addBorder by remember { mutableStateOf(false) }
 
     fun showDatePicker(initialMillis: Long, onPicked: (Long) -> Unit) {
         val cal = Calendar.getInstance().apply { timeInMillis = initialMillis }
@@ -77,7 +78,7 @@ fun ReportPreviewScreen(
             when (format) {
                 "CSV" -> os.write(ReportExporter.buildCsv(t.headers, t.rows).toByteArray(Charsets.UTF_8))
                 "PDF" -> os.write(ReportExporter.renderPdf(context, t.headers, t.rows, t.colAligns))
-                else -> os.write(ReportExporter.buildXlsx(t.headers, t.rows))
+                else -> os.write(ReportExporter.buildXlsx(t.headers, t.rows, withBorder = addBorder))
             }
         }
     }
@@ -117,7 +118,7 @@ fun ReportPreviewScreen(
                         val bytes = when (format) {
                             "CSV" -> ReportExporter.buildCsv(t.headers, t.rows).toByteArray(Charsets.UTF_8)
                             "PDF" -> ReportExporter.renderPdf(context, t.headers, t.rows, t.colAligns)
-                            else -> ReportExporter.buildXlsx(t.headers, t.rows)
+                            else -> ReportExporter.buildXlsx(t.headers, t.rows, withBorder = addBorder)
                         }
                         val cacheFile = File(context.cacheDir, fileName)
                         cacheFile.writeBytes(bytes)
@@ -169,6 +170,12 @@ fun ReportPreviewScreen(
                 Checkbox(checked = addNumber, onCheckedChange = { addNumber = it })
                 Spacer(Modifier.width(6.dp))
                 Text("Добавить столбец № (нумерация)", style = MaterialTheme.typography.labelMedium)
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = addBorder, onCheckedChange = { addBorder = it }, enabled = format == "XLSX")
+                Spacer(Modifier.width(6.dp))
+                Text("Добавить обводку таблицы", style = MaterialTheme.typography.labelMedium)
             }
             Spacer(Modifier.height(4.dp))
             when {

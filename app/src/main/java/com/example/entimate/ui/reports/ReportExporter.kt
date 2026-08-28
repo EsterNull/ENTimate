@@ -27,7 +27,7 @@ object ReportExporter {
         return if (v.contains(',') || v.contains('"') || v.contains('\n')) "\"$v\"" else v
     }
 
-    fun buildXlsx(headers: List<String>, rows: List<List<String>>): ByteArray {
+    fun buildXlsx(headers: List<String>, rows: List<List<String>>, withBorder: Boolean = false): ByteArray {
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
             fun add(name: String, content: String) {
@@ -72,11 +72,20 @@ object ReportExporter {
                 """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
  <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="2"><font><name val="Calibri"/><sz val="11"/></font><font><name val="Calibri"/><b/><sz val="11"/></font></fonts>
- <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <borders count="2">
+   <border><left/><right/><top/><bottom/><diagonal/></border>
+   <border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border>
+  </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" xfId="0"/></cellStyleXfs>
-  <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" xfId="0" applyFont="1"/></cellXfs>
+  <cellXfs count="4">
+   <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+   <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+   <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
+   <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>
+  </cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
-  </styleSheet>""")
+ </styleSheet>""")
 
             add("xl/workbook.xml",
                 """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -92,16 +101,36 @@ object ReportExporter {
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>""")
 
+            val all = listOf(headers) + rows
+            val colCount = headers.size
+            val maxChars = IntArray(colCount) { 0 }
+            all.forEach { row -> row.forEachIndexed { i, s -> val len = s.length; if (len > maxChars[i]) maxChars[i] = len } }
+            val colsXml = buildString {
+                append("<cols>")
+                for (i in 1..colCount) {
+                    val chars = maxChars.getOrElse(i - 1) { 0 }
+                    val w = (chars * 1.1 + 3).coerceAtLeast(8.0)
+                    append("""<col min="$i" max="$i" width="%.2f" customWidth="1"/>""".format(java.util.Locale.US, w))
+                }
+                append("</cols>")
+            }
+
             val sb = StringBuilder()
             sb.append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
-            sb.append("""<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetData>""")
-            val all = listOf(headers) + rows
+            sb.append("""<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"/></sheetViews>""")
+            sb.append(colsXml)
+            sb.append("<sheetData>")
             all.forEachIndexed { rIdx, row ->
                 sb.append("<row r=\"${rIdx + 1}\">")
                 row.forEachIndexed { cIdx, cell ->
                     val col = columnLetter(cIdx)
                     val ref = "$col${rIdx + 1}"
-                    val style = if (rIdx == 0) " s=\"1\"" else ""
+                    val style = when {
+                        rIdx == 0 && withBorder -> " s=\"3\""
+                        rIdx == 0 -> " s=\"1\""
+                        withBorder -> " s=\"2\""
+                        else -> ""
+                    }
                     sb.append("<c r=\"$ref\" t=\"inlineStr\"$style><is><t xml:space=\"preserve\">${escapeXml(cell)}</t></is></c>")
                 }
                 sb.append("</row>")
