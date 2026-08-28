@@ -95,6 +95,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
                     values[def.key] = when (def.key) {
                         "svo" -> if (pw.patient.svo == 1) "true" else "false"
                         "soch" -> if (pw.patient.soch == 1) "true" else "false"
+                        "number" -> if (pw.patient.number != 0) pw.patient.number.toString() else ""
                         else -> patientValue(pw.patient, def.key)
                     }
                 }
@@ -108,7 +109,6 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             values["rank"] = "Рядовой"
             values["category"] = "по призыву"
             values["personalNumber"] = "-"
-            values["number"] = "1"
             values["admissionDate"] = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             values["svo"] = "false"
             values["soch"] = "false"

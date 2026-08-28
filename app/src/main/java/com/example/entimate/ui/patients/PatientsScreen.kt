@@ -265,7 +265,9 @@ private fun PatientCard(p: PatientEntity, dateFormat: String = "dd.MM.yyyy", onC
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("№${p.number}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                if (p.number != 0) {
+                    Text("№${p.number}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                }
                 if (p.soch == 1) {
                     Spacer(Modifier.width(8.dp))
                     Text("СОЧ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)

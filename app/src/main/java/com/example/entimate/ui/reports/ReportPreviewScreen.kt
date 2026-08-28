@@ -114,7 +114,7 @@ fun ReportPreviewScreen(
                             else -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         }
                         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                        val fileName = "${reportName}_отчёт_$dateStr.$ext"
+                        val fileName = "${reportName}_$dateStr.$ext"
                         val bytes = when (format) {
                             "CSV" -> ReportExporter.buildCsv(t.headers, t.rows).toByteArray(Charsets.UTF_8)
                             "PDF" -> ReportExporter.renderPdf(context, t.headers, t.rows, t.colAligns)
@@ -137,7 +137,7 @@ fun ReportPreviewScreen(
                             else -> "xlsx"
                         }
                         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                        launcher.launch("${reportName}_отчёт_$dateStr.$ext")
+                        launcher.launch("${reportName}_$dateStr.$ext")
                     }) { Icon(Icons.Filled.Save, contentDescription = "Сохранить") }
                 },
             )

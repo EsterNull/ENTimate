@@ -80,7 +80,7 @@ fun DocumentStatsScreen(nav: NavController, docId: Long, settingsVm: SettingsVie
                         app.patientRepository.getPatient(id)?.let { pw ->
                             val p = pw.patient
                             val name = listOf(p.lastName, p.firstName, p.middleName).filter { it.isNotBlank() }.joinToString(" ")
-                            map[id] = name.ifBlank { "Пациент №${p.number}" }
+                            map[id] = name.ifBlank { if (p.number != 0) "Пациент №${p.number}" else "Пациент" }
                         }
                     }
                     patientNames = map
