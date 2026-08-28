@@ -48,6 +48,7 @@ data class ReportColumnEntity(
     val position: Int = 0,
     val align: String = "LEFT",
     val dropdownMap: String = "",
+    val hideValues: Int = 0,
 )
 
 @Entity(

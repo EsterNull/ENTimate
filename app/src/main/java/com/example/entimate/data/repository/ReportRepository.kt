@@ -260,7 +260,8 @@ class ReportRepository(private val db: AppDatabase) {
             val row = mutableListOf<String>()
             if (withNumber) row.add((idx + 1).toString())
             report.columns.forEach { col ->
-                row.add(resolveColumnValue(col, pw.patient, cvMap, customLabels, customFields, dateFormat))
+                if (col.hideValues == 1) row.add("")
+                else row.add(resolveColumnValue(col, pw.patient, cvMap, customLabels, customFields, dateFormat))
             }
             row
         }

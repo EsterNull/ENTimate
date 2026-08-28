@@ -436,14 +436,15 @@ object DocumentRenderer {
                 val effAlign = if (mc.align.isNotBlank()) mc.align else if (row.isHeader) "CENTER" else "LEFT"
                 val jc = alignWord(effAlign)
                 val grid = if (span > 1) """<w:gridSpan w:val="$span"/>""" else ""
+                val sz = if (size > 0) size * 2 else if (row.isHeader) 20 else 18
+                val fontSizePt = if (size > 0) size.toFloat() else if (row.isHeader) 10f else 9f
                 val rpr = buildString {
+                    append("""<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>""")
                     if (row.isHeader) append("<w:b/>")
-                    // Table font size: use the element's configured size (points -> half-points)
-                    // when set, otherwise fall back to the default header/data sizes.
-                    val sz = if (size > 0) size * 2 else if (row.isHeader) 20 else 18
                     append("""<w:sz w:val="$sz"/>""")
                 }
-                sb.append("""<w:tc><w:tcPr><w:tcW w:w="$w" w:type="dxa"/>$grid$tcBorders</w:tcPr><w:p><w:pPr><w:jc w:val="$jc"/></w:pPr><w:r><w:rPr>$rpr</w:rPr><w:t xml:space="preserve">${escapeXml(mc.text.take(60))}</w:t></w:r></w:p></w:tc>""")
+                val runInner = wrapDocxRun(mc.text, w, fontSizePt)
+                sb.append("""<w:tc><w:tcPr><w:tcW w:w="$w" w:type="dxa"/>$grid$tcBorders</w:tcPr><w:p><w:pPr><w:jc w:val="$jc"/></w:pPr><w:r><w:rPr>$rpr</w:rPr>$runInner</w:r></w:p></w:tc>""")
                 col += span
             }
             sb.append("</w:tr>")
@@ -551,60 +552,61 @@ object DocumentRenderer {
             val scale = tableW / gridTwips.sum().coerceAtLeast(1).toFloat()
             val colW = gridTwips.map { it.toFloat() * scale }
             val tableRight = originX + colW.sum()
-            val cellH = 16f * k
             val lastRow = rows.size - 1
             val border = spec.border
             rows.forEachIndexed { ri, row ->
-                ensure(cellH)
-                val top = y - 11f * k
-                val sep = y + 5f * k
-                val boundXs = mutableListOf<Float>()
+                val cellLayouts = mutableListOf<CellLayout>()
                 var col = 0
                 for (mc in row.cells) {
                     val span = mc.colSpan.coerceAtLeast(1)
                     val w = (0 until span).fold(0f) { acc, i -> acc + colW.getOrElse(col + i) { 0f } }
                     val cellLeft = originX + (0 until col).fold(0f) { acc, i -> acc + colW.getOrElse(i) { 0f } }
-                    if (!isFiller(mc)) {
-                        boundXs.add(cellLeft)
-                        boundXs.add(cellLeft + w)
-                        val a = if (mc.align.isNotBlank()) mc.align else if (row.isHeader) "CENTER" else "LEFT"
-                        val text = mc.text.take(40)
-                        val tw = paint.measureText(text)
-                        val cx = when (a) {
-                            "RIGHT" -> cellLeft + w - tw - 2f
-                            "CENTER" -> cellLeft + (w - tw) / 2f
-                            else -> cellLeft + 2f
-                        }
-                        canvas.drawText(text, cx, y, paint)
-                    }
+                    val a = if (mc.align.isNotBlank()) mc.align else if (row.isHeader) "CENTER" else "LEFT"
+                    val lines = if (isFiller(mc)) emptyList() else wrapPdfLines(mc.text, (w - 4f).coerceAtLeast(1f), paint)
+                    cellLayouts.add(CellLayout(cellLeft, w, a, isFiller(mc), lines))
                     col += span
+                }
+                val maxLines = (cellLayouts.maxOfOrNull { it.lines.size } ?: 0).coerceAtLeast(1)
+                val lineH = 13f * k
+                val rowH = 16f * k + (maxLines - 1) * lineH
+                ensure(rowH)
+                val bTop = y
+                val bBot = y + rowH
+                for (cl in cellLayouts) {
+                    if (cl.filler) continue
+                    cl.lines.forEachIndexed { li, line ->
+                        val tw = paint.measureText(line)
+                        val cx = when (cl.align) {
+                            "RIGHT" -> cl.left + cl.w - tw - 2f
+                            "CENTER" -> cl.left + (cl.w - tw) / 2f
+                            else -> cl.left + 2f
+                        }
+                        canvas.drawText(line, cx, bTop + 11f * k + li * lineH, paint)
+                    }
                 }
                 if (border != 0) {
                     when (border) {
                         2 -> {
-                            if (ri == 0) canvas.drawLine(originX, top, tableRight, top, paint)
-                            if (ri == lastRow) canvas.drawLine(originX, sep, tableRight, sep, paint)
-                            canvas.drawLine(originX, top, originX, sep, paint)
-                            canvas.drawLine(tableRight, top, tableRight, sep, paint)
+                            if (ri == 0) canvas.drawLine(originX, bTop, tableRight, bTop, paint)
+                            if (ri == lastRow) canvas.drawLine(originX, bBot, tableRight, bBot, paint)
+                            canvas.drawLine(originX, bTop, originX, bBot, paint)
+                            canvas.drawLine(tableRight, bTop, tableRight, bBot, paint)
                         }
                         3 -> {
-                            if (!row.seamStart) canvas.drawLine(originX, top, tableRight, top, paint)
-                            if (ri == lastRow) canvas.drawLine(originX, sep, tableRight, sep, paint)
+                            if (!row.seamStart) canvas.drawLine(originX, bTop, tableRight, bTop, paint)
+                            if (ri == lastRow) canvas.drawLine(originX, bBot, tableRight, bBot, paint)
                         }
                         else -> {
-                            if (!row.seamStart) canvas.drawLine(originX, top, tableRight, top, paint)
-                            if (ri == lastRow) canvas.drawLine(originX, sep, tableRight, sep, paint)
-                            val bxs = (boundXs + originX + tableRight).distinct().sorted()
-                            // Draw every column separator, including the outer left
-                            // (index 0) and right (last) edges of the table, otherwise
-                            // the table has no left/right outline stroke.
+                            if (!row.seamStart) canvas.drawLine(originX, bTop, tableRight, bTop, paint)
+                            if (ri == lastRow) canvas.drawLine(originX, bBot, tableRight, bBot, paint)
+                            val bxs = (cellLayouts.flatMap { if (!it.filler) listOf(it.left, it.left + it.w) else emptyList() } + originX + tableRight).distinct().sorted()
                             for (bx in bxs) {
-                                canvas.drawLine(bx, top, bx, sep, paint)
+                                canvas.drawLine(bx, bTop, bx, bBot, paint)
                             }
                         }
                     }
                 }
-                y += cellH
+                y += rowH
             }
         }
 
@@ -741,6 +743,87 @@ object DocumentRenderer {
         val g = (argb shr 8) and 0xFF
         val b = argb and 0xFF
         return "%02X%02X%02X".format(r, g, b)
+    }
+
+    private data class CellLayout(
+        val left: Float,
+        val w: Float,
+        val align: String,
+        val filler: Boolean,
+        val lines: List<String>,
+    )
+
+    private fun wrapDocxRun(text: String, widthTwips: Int, fontSizePt: Float): String {
+        if (text.isEmpty()) return """<w:t xml:space="preserve"></w:t>"""
+        // Pure-Kotlin width estimate (no Android Paint, so it runs on the JVM in
+        // unit tests). Word re-wraps the text natively inside the fixed-width cell
+        // anyway, so an approximate per-character width is enough to trigger
+        // line breaks and grow the row height when a value is wider than its column.
+        val charW = (fontSizePt * 10f).coerceAtLeast(1f)
+        val maxW = widthTwips.toFloat().coerceAtLeast(1f)
+        val sb = StringBuilder()
+        val lineBuf = StringBuilder()
+        var lineW = 0f
+        fun flushLine(withBreak: Boolean) {
+            if (lineBuf.isNotEmpty()) {
+                sb.append("""<w:t xml:space="preserve">${escapeXml(lineBuf.toString().trimEnd())}</w:t>""")
+                lineBuf.setLength(0)
+            }
+            if (withBreak) sb.append("<w:br/>")
+            lineW = 0f
+        }
+        for (raw in text.split(" ")) {
+            val wordW = raw.length * charW
+            if (lineBuf.isNotEmpty() && lineW + charW + wordW > maxW) flushLine(withBreak = true)
+            var rem = raw
+            while (rem.isNotEmpty()) {
+                val remW = rem.length * charW
+                if (remW <= maxW - lineW || rem.length == 1) {
+                    lineBuf.append(rem)
+                    lineW += remW
+                    rem = ""
+                } else {
+                    val cut = minOf(rem.length, maxOf(1, ((maxW - lineW) / charW).toInt()))
+                    lineBuf.append(rem.substring(0, cut))
+                    flushLine(withBreak = true)
+                    rem = rem.substring(cut)
+                }
+            }
+            lineBuf.append(" ")
+            lineW += charW
+        }
+        flushLine(withBreak = false)
+        return sb.toString()
+    }
+
+    private fun wrapPdfLines(text: String, maxW: Float, paint: TextPaint): List<String> {
+        if (text.isEmpty()) return emptyList()
+        val lines = mutableListOf<String>()
+        val spaceW = paint.measureText(" ")
+        var line = StringBuilder()
+        var lineW = 0f
+        fun flush() { if (line.isNotEmpty()) { lines.add(line.toString().trimEnd()); line = StringBuilder(); lineW = 0f } }
+        for (word in text.split(" ")) {
+            val wordW = paint.measureText(word)
+            if (line.isNotEmpty() && lineW + spaceW + wordW > maxW) flush()
+            var rem = word
+            while (rem.isNotEmpty()) {
+                val w = paint.measureText(rem)
+                if (w <= maxW - lineW || rem.length == 1) {
+                    line.append(rem); lineW += w; rem = ""
+                } else {
+                    var cut = rem.length
+                    while (cut > 1 && paint.measureText(rem.substring(0, cut)) > maxW - lineW) cut--
+                    line.append(rem.substring(0, cut))
+                    flush()
+                    rem = rem.substring(cut)
+                }
+            }
+            line.append(" ")
+            lineW += spaceW
+        }
+        flush()
+        return lines
     }
 
     private fun escapeXml(value: String): String = value

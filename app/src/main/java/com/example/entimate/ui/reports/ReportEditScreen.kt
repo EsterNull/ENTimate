@@ -230,6 +230,15 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                          modifier = Modifier.fillMaxWidth(),
                      )
                             }
+                            Spacer(Modifier.height(6.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = col.hideValues == 1,
+                                    onCheckedChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(hideValues = if (v) 1 else 0) } },
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Скрыть значения (оставить только заголовок)", style = MaterialTheme.typography.labelMedium)
+                            }
                             val dropdownKeys = colKeys.filter { optByKey[it]?.type == "DROPDOWN" }
                             if (dropdownKeys.isNotEmpty()) {
                                 val map = parseDropdownMap(col.dropdownMap)
@@ -475,6 +484,7 @@ private fun AddColumnDialog(
     var separator by remember { mutableStateOf(initial?.joinSeparator ?: " ") }
     var label by remember { mutableStateOf(initial?.label ?: "") }
     var align by remember { mutableStateOf(initial?.align ?: "LEFT") }
+    var hideValues by remember { mutableStateOf(initial?.hideValues == 1) }
     val focusManager = LocalFocusManager.current
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -497,6 +507,12 @@ private fun AddColumnDialog(
                     ExposedDropdownMenu(expanded = alignExpanded, onDismissRequest = { alignExpanded = false }) {
                         alignOptions.forEach { o -> DropdownMenuItem(text = { Text(o.second) }, onClick = { align = o.first; alignExpanded = false }) }
                     }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = hideValues, onCheckedChange = { hideValues = it })
+                    Spacer(Modifier.width(6.dp))
+                    Text("Скрыть значения (оставить только заголовок)", style = MaterialTheme.typography.labelMedium)
                 }
                 Spacer(Modifier.height(8.dp))
                 Text("Поля (можно выбрать несколько для объединения):", style = MaterialTheme.typography.labelMedium)
@@ -526,6 +542,7 @@ private fun AddColumnDialog(
                             falseText = initial?.falseText ?: "",
                             align = align,
                             position = initial?.position ?: 0,
+                            hideValues = if (hideValues) 1 else 0,
                         )
                     )
                 }

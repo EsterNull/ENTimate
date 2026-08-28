@@ -55,7 +55,7 @@ fun ReportPreviewScreen(
     var format by remember { mutableStateOf("XLSX") }
     var reportName by remember { mutableStateOf("report") }
     var addNumber by remember { mutableStateOf(true) }
-    var addBorder by remember { mutableStateOf(false) }
+    var addBorder by remember { mutableStateOf(true) }
 
     fun showDatePicker(initialMillis: Long, onPicked: (Long) -> Unit) {
         val cal = Calendar.getInstance().apply { timeInMillis = initialMillis }

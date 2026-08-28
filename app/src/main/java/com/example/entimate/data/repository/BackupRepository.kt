@@ -114,6 +114,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("position", it.position)
                 put("align", it.align)
                 put("dropdownMap", it.dropdownMap)
+                put("hideValues", it.hideValues)
             }
         }))
         root.put("reportFilters", JSONArray(filters.map {
@@ -455,6 +456,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         position = o.optInt("position", 0),
                         align = o.optString("align", "LEFT"),
                         dropdownMap = o.optString("dropdownMap", ""),
+                        hideValues = o.optInt("hideValues", 0),
                     )
                 )
             }
