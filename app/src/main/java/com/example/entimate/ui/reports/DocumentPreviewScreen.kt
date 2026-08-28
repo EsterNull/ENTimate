@@ -132,7 +132,7 @@ fun DocumentPreviewScreen(reportId: Long, from: Long = 0L, to: Long = System.cur
                             "DOCX" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             else -> "application/pdf"
                         }
-                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date())
                         val fileName = "${title}_$dateStr.$ext"
                         val bytes = when (format) {
                             "DOCX" -> vm.buildDocx(doc)
@@ -153,7 +153,7 @@ fun DocumentPreviewScreen(reportId: Long, from: Long = 0L, to: Long = System.cur
                             "DOCX" -> "docx"
                             else -> "pdf"
                         }
-                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date())
                         launcher.launch("${title}_$dateStr.$ext")
                     }) { Icon(Icons.Filled.Save, contentDescription = "Сохранить") }
                 },
