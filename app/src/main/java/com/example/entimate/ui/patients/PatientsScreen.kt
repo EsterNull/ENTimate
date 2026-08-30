@@ -107,12 +107,13 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
         }
         val todayIso = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
         var reDate by remember(pendingReregister) { mutableStateOf(todayIso) }
+        var reNumber by remember(pendingReregister) { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { pendingReregister = null },
             title = { Text("Переоформление") },
             text = {
                 Column {
-                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме даты поступления, начала заболевания/травмы (приравнивается к дате поступления) и поля «Кем направлен больной» (очищается).")
+                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме номера, даты поступления, начала заболевания/травмы (приравнивается к дате поступления) и поля «Кем направлен больной» (очищается).")
                     Spacer(Modifier.height(12.dp))
                     DateField(
                         value = reDate,
@@ -120,13 +121,23 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                         label = "Дата поступления",
                         maxDate = todayStart,
                     )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = reNumber,
+                        onValueChange = { v -> reNumber = v.filter { it.isDigit() } },
+                        label = { Text("Номер (необязательно)") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             },
             confirmButton = {
                 TextButton(
                     enabled = reDate.isNotBlank(),
                     onClick = {
-                        vm.reregisterPatient(pendingReregister!!.patient, reDate)
+                        val newNumber = reNumber.toIntOrNull()
+                        vm.reregisterPatient(pendingReregister!!.patient, reDate, newNumber)
                         pendingReregister = null
                     },
                 ) { Text("Переоформить") }

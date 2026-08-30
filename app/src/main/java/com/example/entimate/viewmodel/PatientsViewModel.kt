@@ -35,8 +35,8 @@ class PatientsViewModel(application: Application) : AndroidViewModel(application
 
     fun dischargePatient(patient: PatientEntity) = viewModelScope.launch { repo.dischargePatient(patient) }
 
-    fun reregisterPatient(patient: PatientEntity, admissionDate: String) =
-        viewModelScope.launch { repo.reregisterPatient(patient, admissionDate) }
+    fun reregisterPatient(patient: PatientEntity, admissionDate: String, newNumber: Int? = null) =
+        viewModelScope.launch { repo.reregisterPatient(patient, admissionDate, newNumber) }
 
     fun saveCustomField(f: PatientCustomFieldEntity) = viewModelScope.launch { repo.saveCustomField(f) }
     fun deleteCustomField(f: PatientCustomFieldEntity) = viewModelScope.launch { repo.deleteCustomField(f) }

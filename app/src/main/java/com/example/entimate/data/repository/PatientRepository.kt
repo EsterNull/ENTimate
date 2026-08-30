@@ -53,11 +53,12 @@ class PatientRepository(private val db: AppDatabase) {
         patientDao.updatePatient(patient.copy(discharged = 1))
     }
 
-    suspend fun reregisterPatient(old: PatientEntity, admissionDate: String): Long = db.withTransaction {
+    suspend fun reregisterPatient(old: PatientEntity, admissionDate: String, newNumber: Int? = null): Long = db.withTransaction {
         patientDao.updatePatient(old.copy(discharged = 1))
         val oldValues = patientDao.getCustomValues(old.id)
         val fresh = old.copy(
             id = 0,
+            number = newNumber ?: old.number,
             admissionDate = admissionDate,
             illnessStart = admissionDate,
             referredBy = "",
