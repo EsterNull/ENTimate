@@ -1,5 +1,7 @@
 package com.example.entimate.ui.patients
 
+import com.example.entimate.ui.navigation.navigateBack
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,7 +41,7 @@ fun CustomFieldsScreen(nav: NavController) {
         topBar = {
             TopAppBar(
                 title = { Text("Пользовательские поля") },
-                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
+                navigationIcon = { IconButton(onClick = { nav.navigateBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
                 actions = { IconButton(onClick = { editing = null; showDialog = true }) { Icon(Icons.Filled.Add, contentDescription = "Добавить поле") } },
             )
         },

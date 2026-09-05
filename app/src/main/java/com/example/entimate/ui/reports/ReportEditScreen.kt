@@ -1,8 +1,12 @@
 package com.example.entimate.ui.reports
 
+import com.example.entimate.ui.navigation.navigateBack
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
@@ -88,7 +92,7 @@ private fun ChooserScaffold(nav: NavController, onChoose: (String) -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("Новый отчёт") },
-                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
+                navigationIcon = { IconButton(onClick = { nav.navigateBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
             )
         },
     ) { padding ->
@@ -117,8 +121,8 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
     var description by remember { mutableStateOf("") }
     var color by remember { mutableStateOf(0) }
     var nameError by remember { mutableStateOf(false) }
-    var columns by remember { mutableStateOf(listOf<ReportColumnEntity>()) }
-    var filters by remember { mutableStateOf(listOf<ReportFilterEntity>()) }
+    val columns = remember { mutableStateListOf<ReportColumnEntity>() }
+    val filters = remember { mutableStateListOf<ReportFilterEntity>() }
     var customFields by remember { mutableStateOf(listOf<PatientCustomFieldEntity>()) }
     var loaded by remember { mutableStateOf(reportId == 0L) }
     var showColumnPicker by remember { mutableStateOf(false) }
@@ -137,8 +141,10 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                 name = r.report.name
                 description = r.report.description
                 color = r.report.colorArgb
-                columns = r.columns.map { it.copy() }
-                filters = r.filters.map { it.copy() }
+                columns.clear()
+                columns.addAll(r.columns.map { it.copy() })
+                filters.clear()
+                filters.addAll(r.filters.map { it.copy() })
             }
             loaded = true
         }
@@ -162,12 +168,12 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
         topBar = {
             TopAppBar(
                 title = { Text(if (reportId == 0L) "Новый отчёт" else "Редактировать отчёт") },
-                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
+                navigationIcon = { IconButton(onClick = { nav.navigateBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
                 actions = {
                     IconButton(onClick = { saveAnd { id -> nav.navigate("reports/preview/$id/0/${System.currentTimeMillis()}") } }) {
                         Icon(Icons.Filled.TableChart, contentDescription = "Предпросмотр")
                     }
-                    IconButton(onClick = { saveAnd { nav.popBackStack() } }) {
+                    IconButton(onClick = { saveAnd { nav.navigateBack() } }) {
                         Icon(Icons.Filled.Check, contentDescription = "Сохранить")
                     }
                 },
@@ -178,25 +184,28 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             return@Scaffold
         }
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()).imePadding(),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).imePadding(),
         ) {
-            OutlinedTextField(value = name, onValueChange = { name = it.stripNewlines(); nameError = false }, label = { Text("Название") }, isError = nameError, singleLine = true, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth())
-            if (nameError) Text("Укажите название и оно не должно повторяться.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(value = description, onValueChange = { description = it.stripNewlines() }, label = { Text("Описание") }, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp), maxLines = 4)
-            Spacer(Modifier.height(16.dp))
-            Text("Цвет карточки", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(8.dp))
-            ColorRow(color = color, onColorChange = { color = it })
-            Spacer(Modifier.height(20.dp))
+            item {
+                OutlinedTextField(value = name, onValueChange = { name = it.stripNewlines(); nameError = false }, label = { Text("Название") }, isError = nameError, singleLine = true, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth())
+                if (nameError) Text("Укажите название и оно не должно повторяться.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(value = description, onValueChange = { description = it.stripNewlines() }, label = { Text("Описание") }, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp), maxLines = 4)
+                Spacer(Modifier.height(16.dp))
+                Text("Цвет карточки", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(8.dp))
+                ColorRow(color = color, onColorChange = { color = it })
+                Spacer(Modifier.height(20.dp))
 
-            Text("Поля отчёта (столбцы)", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            if (columns.isEmpty()) {
-                Text("Нет выбранных полей.", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall)
-            } else {
-                columns.forEachIndexed { idx, col ->
+                Text("Поля отчёта (столбцы)", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                if (columns.isEmpty()) {
+                    Text("Нет выбранных полей.", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            items(columns.size, key = { columns[it].id }) { idx ->
+                val col = columns[idx]
                     val header = if (col.label.isNotBlank()) col.label else (col.sourceFieldKeys.ifBlank { col.fieldKey }).split(",").firstOrNull()?.let { optByKey[it]?.label ?: it } ?: "Колонка"
                     val colKeys = col.sourceFieldKeys.ifBlank { col.fieldKey }.split(",").map { it.trim() }.filter { it.isNotBlank() }
                     val containsCheckbox = colKeys.any { optByKey[it]?.type == "CHECKBOX" }
@@ -204,7 +213,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                         Column(Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("${idx + 1}. $header", modifier = Modifier.weight(1f))
-                                IconButton(onClick = { columns = columns.toMutableList().also { it.removeAt(idx) } }) {
+                                IconButton(onClick = { columns.removeAt(idx) }) {
                                     Icon(Icons.Filled.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
@@ -214,7 +223,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                                 Spacer(Modifier.height(4.dp))
                                 OutlinedTextField(
                                     value = col.trueText,
-                                    onValueChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(trueText = v.stripNewlines()) } },
+                                    onValueChange = { v -> columns[idx] = columns[idx].copy(trueText = v.stripNewlines()) },
                                     label = { Text("Если отмечено") },
                                     singleLine = true,
                                     keyboardOptions = TextKeyboardOptions,
@@ -222,7 +231,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                                 )
                      OutlinedTextField(
                          value = col.falseText,
-                         onValueChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(falseText = v.stripNewlines()) } },
+                         onValueChange = { v -> columns[idx] = columns[idx].copy(falseText = v.stripNewlines()) },
                          label = { Text("Если не отмечено") },
                          singleLine = true,
                          keyboardOptions = if (idx == columns.lastIndex) TextKeyboardOptionsDone else TextKeyboardOptions,
@@ -234,7 +243,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(
                                     checked = col.hideValues == 1,
-                                    onCheckedChange = { v -> columns = columns.toMutableList().also { it[idx] = it[idx].copy(hideValues = if (v) 1 else 0) } },
+                                    onCheckedChange = { v -> columns[idx] = columns[idx].copy(hideValues = if (v) 1 else 0) },
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text("Скрыть значения (оставить только заголовок)", style = MaterialTheme.typography.labelMedium)
@@ -264,7 +273,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                                                         val m = parseDropdownMap(col.dropdownMap).toMutableMap()
                                                         val entryKey = "$dKey#$opt"
                                                         if (nv.isEmpty()) m.remove(entryKey) else m[entryKey] = nv
-                                                        columns = columns.toMutableList().also { it[idx] = it[idx].copy(dropdownMap = serializeDropdownMap(m)) }
+                                                        columns[idx] = columns[idx].copy(dropdownMap = serializeDropdownMap(m))
                                                     },
                                                     label = { Text(opt) },
                                                     singleLine = true,
@@ -277,7 +286,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                                                         val m = parseDropdownMap(col.dropdownMap).toMutableMap()
                                                         if (raw == DROPDOWN_EMPTY_MARKER) m.remove("$dKey#$opt")
                                                         else m["$dKey#$opt"] = DROPDOWN_EMPTY_MARKER
-                                                        columns = columns.toMutableList().also { it[idx] = it[idx].copy(dropdownMap = serializeDropdownMap(m)) }
+                                                        columns[idx] = columns[idx].copy(dropdownMap = serializeDropdownMap(m))
                                                     },
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                                                     border = BorderStroke(1.dp, if (isEmpty) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
@@ -291,18 +300,20 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                             }
                         }
                     }
+            }
+            item {
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { editingColumn = -1; showColumnPicker = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Добавить поле") }
+
+                Spacer(Modifier.height(20.dp))
+                Text("Фильтры (условия включения пациентов)", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                if (filters.isEmpty()) {
+                    Text("Без фильтров будут показаны все пациенты.", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { editingColumn = -1; showColumnPicker = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Добавить поле") }
-
-            Spacer(Modifier.height(20.dp))
-            Text("Фильтры (условия включения пациентов)", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            if (filters.isEmpty()) {
-                Text("Без фильтров будут показаны все пациенты.", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall)
-            } else {
-                filters.forEachIndexed { idx, f ->
+            items(filters.size, key = { filters[it].id }) { idx ->
+                val f = filters[idx]
                     val fo = optByKey[f.fieldKey]
                     FilterRow(
                         filter = f,
@@ -310,16 +321,17 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                         type = fo?.type ?: "TEXT",
                         label = fo?.label ?: patientFieldByKey(f.fieldKey)?.label ?: f.fieldKey,
                         options = fo?.let { optList(it) } ?: emptyList(),
-                        onConnectorChange = { c -> filters = filters.toMutableList().also { it[idx] = it[idx].copy(connector = c) } },
-                        onValueChange = { v -> filters = filters.toMutableList().also { it[idx] = it[idx].copy(value = v) } },
-                        onDelete = { filters = filters.toMutableList().also { it.removeAt(idx) } },
+                        onConnectorChange = { c -> filters[idx] = filters[idx].copy(connector = c) },
+                        onValueChange = { v -> filters[idx] = filters[idx].copy(value = v) },
+                        onDelete = { filters.removeAt(idx) },
                         isLast = idx == filters.lastIndex,
                     )
                     Spacer(Modifier.height(8.dp))
-                }
             }
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { showFilterPicker = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Добавить фильтр") }
+            item {
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { showFilterPicker = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Добавить фильтр") }
+            }
         }
     }
 
@@ -330,7 +342,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
             initial = if (editingColumn < 0) null else columns.getOrNull(editingColumn),
             onDismiss = { showColumnPicker = false; editingColumn = -1 },
             onConfirm = { col ->
-                columns = if (editingColumn < 0) columns + col else columns.toMutableList().also { it[editingColumn] = col }
+                if (editingColumn < 0) columns.add(col) else columns[editingColumn] = col
                 showColumnPicker = false
                 editingColumn = -1
             },
@@ -346,12 +358,12 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                 val fo = optByKey[key]!!
                 val op = operatorOptions(fo.type).first().first
                 val cond = if (fo.type == "CHECKBOX") "true" else optList(fo).firstOrNull() ?: ""
-                filters = filters + ReportFilterEntity(
+                filters.add(ReportFilterEntity(
                     id = 0, reportId = 0,
                     position = filters.size,
                     connector = if (filters.isEmpty()) "AND" else "AND",
                     fieldKey = key, operator = op, value = cond,
-                )
+                ))
                 showFilterPicker = false
             },
         )

@@ -1,5 +1,7 @@
 package com.example.entimate.ui.documents
 
+import com.example.entimate.ui.navigation.navigateBack
+
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -46,7 +48,7 @@ fun DocumentStatsScreen(nav: NavController, docId: Long, settingsVm: SettingsVie
             TopAppBar(
                 title = { Text(doc?.name ?: "Статистика") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
+                    IconButton(onClick = { nav.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },

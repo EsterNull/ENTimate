@@ -1,5 +1,7 @@
 package com.example.entimate.ui.patients
 
+import com.example.entimate.ui.navigation.navigateBack
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -160,7 +162,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
         )
         scope.launch {
             repo.savePatient(p, customValues.toMap())
-            nav.popBackStack()
+            nav.navigateBack()
         }
     }
 
@@ -169,7 +171,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             TopAppBar(
                 title = { Text(if (patientId == 0L) "Новый пациент" else "Редактировать пациента") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
+                    IconButton(onClick = { nav.navigateBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
                 },
                 actions = {
                     IconButton(onClick = { save() }) { Icon(Icons.Filled.Check, contentDescription = "Сохранить") }

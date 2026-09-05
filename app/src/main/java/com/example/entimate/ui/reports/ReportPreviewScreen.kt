@@ -1,5 +1,7 @@
 package com.example.entimate.ui.reports
 
+import com.example.entimate.ui.navigation.navigateBack
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.app.DatePickerDialog
@@ -96,7 +98,7 @@ fun ReportPreviewScreen(
             TopAppBar(
                 title = { Text("Предпросмотр") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
+                    IconButton(onClick = { nav.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
@@ -113,7 +115,7 @@ fun ReportPreviewScreen(
                             "PDF" -> "application/pdf"
                             else -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         }
-                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date())
+                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date()).replace(Regex("[.\\-/]"), "_")
                         val fileName = "${reportName}_$dateStr.$ext"
                         val bytes = when (format) {
                             "CSV" -> ReportExporter.buildCsv(t.headers, t.rows).toByteArray(Charsets.UTF_8)
@@ -136,7 +138,7 @@ fun ReportPreviewScreen(
                             "PDF" -> "pdf"
                             else -> "xlsx"
                         }
-                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date())
+                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date()).replace(Regex("[.\\-/]"), "_")
                         launcher.launch("${reportName}_$dateStr.$ext")
                     }) { Icon(Icons.Filled.Save, contentDescription = "Сохранить") }
                 },

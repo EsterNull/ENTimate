@@ -1,5 +1,7 @@
 package com.example.entimate.ui.documents
 
+import com.example.entimate.ui.navigation.navigateBack
+
 import com.example.entimate.ui.stripNewlines
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -76,7 +78,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
             TopAppBar(
                 title = { Text(if (docId == 0L) "Новый документ" else "Редактировать документ") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
+                    IconButton(onClick = { nav.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
@@ -106,7 +108,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                                     val delta = (quantity.toIntOrNull() ?: 0) - originalQuantity
                                     if (delta != 0) repo.recordChange(docId, delta)
                                 }
-                                nav.popBackStack()
+                                nav.navigateBack()
                             }
                         }
                     ) {

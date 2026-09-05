@@ -14,9 +14,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun Skeleton(
-    modifier: Modifier = Modifier
-        .fillMaxWidth()
-        .height(16.dp),
+    modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(6.dp),
 ) {
     val base = MaterialTheme.colorScheme.surfaceVariant

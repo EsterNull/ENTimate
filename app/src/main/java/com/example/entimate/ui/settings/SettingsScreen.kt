@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -160,7 +161,7 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
                     "EsterNull",
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/EsterNull")))
+                        context.startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/EsterNull".toUri()))
                     },
                 )
             }

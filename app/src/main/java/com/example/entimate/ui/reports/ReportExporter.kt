@@ -103,7 +103,7 @@ object ReportExporter {
 
             val all = listOf(headers) + rows
             val colCount = headers.size
-            val maxChars = IntArray(colCount) { 0 }
+            val maxChars = IntArray(colCount)
             all.forEach { row -> row.forEachIndexed { i, s -> val len = s.length; if (len > maxChars[i]) maxChars[i] = len } }
             val colsXml = buildString {
                 append("<cols>")
@@ -176,7 +176,7 @@ object ReportExporter {
 
         val cols = if (headers.isEmpty()) 1 else headers.size
         val usable = pageWidth - margin * 2
-        val maxChars = IntArray(cols) { 0 }
+        val maxChars = IntArray(cols)
         fun acc(cells: List<String>) { cells.forEachIndexed { i, s -> if (s.length > maxChars[i]) maxChars[i] = s.length } }
         acc(headers)
         rows.forEach { acc(it) }

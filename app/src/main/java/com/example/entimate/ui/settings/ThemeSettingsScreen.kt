@@ -1,5 +1,7 @@
 package com.example.entimate.ui.settings
 
+import com.example.entimate.ui.navigation.navigateBack
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -78,7 +80,7 @@ fun ThemeSettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel())
             TopAppBar(
                 title = { Text("Тема оформления") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
+                    IconButton(onClick = { nav.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },

@@ -1,13 +1,15 @@
 package com.example.entimate.ui.reports
 
+import com.example.entimate.ui.navigation.navigateBack
+
 import android.content.Intent
-import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,12 +21,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.createBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -120,7 +124,7 @@ fun DocumentPreviewScreen(reportId: Long, from: Long = 0L, to: Long = System.cur
         topBar = {
             TopAppBar(
                 title = { Text("Предпросмотр") },
-                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
+                navigationIcon = { IconButton(onClick = { nav.navigateBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
                 actions = {
                     IconButton(onClick = {
                         val doc = docState ?: return@IconButton
@@ -132,7 +136,7 @@ fun DocumentPreviewScreen(reportId: Long, from: Long = 0L, to: Long = System.cur
                             "DOCX" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             else -> "application/pdf"
                         }
-                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date())
+                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date()).replace(Regex("[.\\-/]"), "_")
                         val fileName = "${title}_$dateStr.$ext"
                         val bytes = when (format) {
                             "DOCX" -> vm.buildDocx(doc)
@@ -153,7 +157,7 @@ fun DocumentPreviewScreen(reportId: Long, from: Long = 0L, to: Long = System.cur
                             "DOCX" -> "docx"
                             else -> "pdf"
                         }
-                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date())
+                        val dateStr = SimpleDateFormat(settings.dateFormat, Locale.getDefault()).format(Date()).replace(Regex("[.\\-/]"), "_")
                         launcher.launch("${title}_$dateStr.$ext")
                     }) { Icon(Icons.Filled.Save, contentDescription = "Сохранить") }
                 },
@@ -188,9 +192,18 @@ fun DocumentPreviewScreen(reportId: Long, from: Long = 0L, to: Long = System.cur
             } else if (pageCount == 0) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Нет данных для предпросмотра.") }
             } else {
-                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Top) {
+                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(count = pageCount) { i ->
-                        PagePreview(renderer = renderer, index = i, renderLock = renderLock)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                HorizontalDivider(Modifier.weight(1f))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Страница ${i + 1} из $pageCount", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                                Spacer(Modifier.width(8.dp))
+                                HorizontalDivider(Modifier.weight(1f))
+                            }
+                            PagePreview(renderer = renderer, index = i, renderLock = renderLock)
+                        }
                     }
                 }
             }
@@ -215,7 +228,7 @@ private fun PagePreview(renderer: PdfRenderer?, index: Int, renderLock: Mutex) {
                         val bScale = minOf(2.5f, 4096f / maxDim).coerceAtLeast(0.1f)
                         val outW = (pageW * bScale).toInt().coerceAtLeast(1)
                         val outH = (pageH * bScale).toInt().coerceAtLeast(1)
-                        val bmp2 = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
+                        val bmp2 = createBitmap(outW, outH)
                         bmp2.eraseColor(android.graphics.Color.WHITE)
                         val matrix = android.graphics.Matrix().apply { setScale(bScale, bScale) }
                         page.render(bmp2, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
@@ -230,7 +243,14 @@ private fun PagePreview(renderer: PdfRenderer?, index: Int, renderLock: Mutex) {
         }
         bmp = bitmap?.asImageBitmap()
     }
-    Box(Modifier.fillMaxWidth().background(Color.White)) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .shadow(elevation = 3.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            .background(Color.White),
+    ) {
         if (bmp != null) {
             Image(bitmap = bmp!!, contentDescription = null, modifier = Modifier.fillMaxWidth(), contentScale = ContentScale.FillWidth)
         } else {

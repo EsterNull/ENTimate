@@ -23,6 +23,13 @@ import kotlin.math.roundToInt
 
 object DocumentRenderer {
 
+    private class FamilyFaces(
+        val regular: Typeface,
+        val bold: Typeface,
+        val italic: Typeface,
+        val boldItalic: Typeface,
+    )
+
     private const val MM_TO_TWIPS = 1440f / 25.4f
     private fun mmToTwips(mm: Float) = (mm * MM_TO_TWIPS).toInt()
     private const val MM_TO_PX = 72f / 25.4f
@@ -444,7 +451,7 @@ object DocumentRenderer {
                     append("""<w:sz w:val="$sz"/>""")
                 }
                 val runInner = wrapDocxRun(mc.text, w, fontSizePt)
-                sb.append("""<w:tc><w:tcPr><w:tcW w:w="$w" w:type="dxa"/>$grid$tcBorders</w:tcPr><w:p><w:pPr><w:jc w:val="$jc"/></w:pPr><w:r><w:rPr>$rpr</w:rPr>$runInner</w:r></w:p></w:tc>""")
+                sb.append("""<w:tc><w:tcPr><w:tcW w:w="$w" w:type="dxa"/>$grid$tcBorders</w:tcPr><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="$jc"/></w:pPr><w:r><w:rPr>$rpr</w:rPr>$runInner</w:r></w:p></w:tc>""")
                 col += span
             }
             sb.append("</w:tr>")
@@ -484,14 +491,39 @@ object DocumentRenderer {
         val bottomM = doc.marginBottomMm * MM_TO_PX
         val left = doc.marginLeftMm * MM_TO_PX
         val right = pageW - doc.marginRightMm * MM_TO_PX
-        val space = 4f
         val tabW = 12.5f * MM_TO_PX
 
+        // Bundled metric-compatible fonts so the app's PDF lays out exactly like
+        // Word renders the same DOCX (wrapping, character widths, line heights).
+        //   Tinos     ~ Times New Roman  (serif / default)
+        //   Arimo     ~ Arial
+        //   Carlito   ~ Calibri
+        //   Cousine   ~ Courier New
+        // Falls back to the platform family if any asset is missing.
+        fun loadFamily(prefix: String, fallback: Typeface): FamilyFaces {
+            fun asset(name: String, fb: Typeface): Typeface = try {
+                Typeface.createFromAsset(context.assets, name)
+            } catch (_: Throwable) {
+                fb
+            }
+            return FamilyFaces(
+                regular = asset("${prefix}Regular.ttf", fallback),
+                bold = asset("${prefix}Bold.ttf", Typeface.create(fallback, Typeface.BOLD)),
+                italic = asset("${prefix}Italic.ttf", Typeface.create(fallback, Typeface.ITALIC)),
+                boldItalic = asset("${prefix}BoldItalic.ttf", Typeface.create(fallback, Typeface.BOLD_ITALIC)),
+            )
+        }
+        val serif = loadFamily("fonts/Tinos-", Typeface.SERIF)
+        val sans = loadFamily("fonts/Arimo-", Typeface.SANS_SERIF)
+        val calibri = loadFamily("fonts/Carlito-", sans.regular)
+        val mono = loadFamily("fonts/Cousine-", Typeface.MONOSPACE)
+
         val basePaint = TextPaint().apply {
-            typeface = Typeface.SERIF
-            textSize = 12f
+            typeface = serif.regular
+            textSize = 10f
             color = AndroidColor.BLACK
         }
+        val space = basePaint.measureText(" ")
 
         var page = pdf.startPage(PdfDocument.PageInfo.Builder(pageW, pageH, 1).create())
         var canvas: Canvas = page.canvas
@@ -508,15 +540,18 @@ object DocumentRenderer {
         }
 
         fun typeface(font: String, bold: Boolean, italic: Boolean): Typeface {
-            val family = when {
-                font.contains("courier", true) -> Typeface.MONOSPACE
-                font.contains("arial", true) || font.contains("calibri", true) -> Typeface.SANS_SERIF
-                else -> Typeface.SERIF
+            val fam = when {
+                font.contains("courier", true) -> mono
+                font.contains("calibri", true) -> calibri
+                font.contains("arial", true) -> sans
+                else -> serif
             }
-            var style = Typeface.NORMAL
-            if (bold) style = style or Typeface.BOLD
-            if (italic) style = style or Typeface.ITALIC
-            return Typeface.create(family, style)
+            return when {
+                bold && italic -> fam.boldItalic
+                bold -> fam.bold
+                italic -> fam.italic
+                else -> fam.regular
+            }
         }
 
         fun nextTabStop(x: Float, base: Float): Float {
@@ -538,6 +573,12 @@ object DocumentRenderer {
             val ts = if (size > 0f) size else 9f
             val k = ts / 9f
             val paint = TextPaint(basePaint).apply { textSize = ts }
+            // Table-header rows are bold at 10pt, matching the DOCX table writer
+            // (<w:b/> + sz 20 -> 10pt) so Word and the app PDF look identical.
+            val headerPaint = TextPaint(basePaint).apply {
+                typeface = serif.bold
+                textSize = if (size > 0f) ts else 10f
+            }
             if (spec.title.isNotBlank()) {
                 ensure(20f * k)
                 val tw = paint.measureText(spec.title)
@@ -555,6 +596,9 @@ object DocumentRenderer {
             val lastRow = rows.size - 1
             val border = spec.border
             rows.forEachIndexed { ri, row ->
+                val rowPaint = if (row.isHeader) headerPaint else paint
+                val rts = rowPaint.textSize
+                val rk = rts / 9f
                 val cellLayouts = mutableListOf<CellLayout>()
                 var col = 0
                 for (mc in row.cells) {
@@ -562,26 +606,28 @@ object DocumentRenderer {
                     val w = (0 until span).fold(0f) { acc, i -> acc + colW.getOrElse(col + i) { 0f } }
                     val cellLeft = originX + (0 until col).fold(0f) { acc, i -> acc + colW.getOrElse(i) { 0f } }
                     val a = if (mc.align.isNotBlank()) mc.align else if (row.isHeader) "CENTER" else "LEFT"
-                    val lines = if (isFiller(mc)) emptyList() else wrapPdfLines(mc.text, (w - 4f).coerceAtLeast(1f), paint)
+                    val lines = if (isFiller(mc)) emptyList() else wrapPdfLines(mc.text, (w - 4f).coerceAtLeast(1f), rowPaint)
                     cellLayouts.add(CellLayout(cellLeft, w, a, isFiller(mc), lines))
                     col += span
                 }
                 val maxLines = (cellLayouts.maxOfOrNull { it.lines.size } ?: 0).coerceAtLeast(1)
-                val lineH = 13f * k
-                val rowH = 16f * k + (maxLines - 1) * lineH
+                // Word renders a single-lined cell ~12pt tall (single line spacing);
+                // each extra wrapped line adds one more line height.
+                val lineH = 12f * rk
+                val rowH = lineH * maxLines
                 ensure(rowH)
                 val bTop = y
                 val bBot = y + rowH
                 for (cl in cellLayouts) {
                     if (cl.filler) continue
                     cl.lines.forEachIndexed { li, line ->
-                        val tw = paint.measureText(line)
+                        val tw = rowPaint.measureText(line)
                         val cx = when (cl.align) {
                             "RIGHT" -> cl.left + cl.w - tw - 2f
                             "CENTER" -> cl.left + (cl.w - tw) / 2f
                             else -> cl.left + 2f
                         }
-                        canvas.drawText(line, cx, bTop + 11f * k + li * lineH, paint)
+                        canvas.drawText(line, cx, bTop + lineH * 0.68f + li * lineH, rowPaint)
                     }
                 }
                 if (border != 0) {
@@ -631,7 +677,6 @@ object DocumentRenderer {
             val align = para.align
             val leftEdge = left + para.indentLeftMm * MM_TO_PX
             val rightEdge = right - para.indentRightMm * MM_TO_PX
-            val lineMul = para.lineSpacing
             val firstPx = para.firstLineMm * MM_TO_PX
             val spaceBeforePx = para.spaceBeforeMm * MM_TO_PX
             val spaceAfterPx = para.spaceAfterMm * MM_TO_PX
@@ -647,7 +692,7 @@ object DocumentRenderer {
                 var firstLine = true
                 fun flush() {
                     if (line.isEmpty()) return
-                    val lineHeight = 18f * lineMul
+                    val lineHeight = 12f
                     ensure(lineHeight)
                     val total = line.fold(0f) { acc, w -> acc + (if (w.tab) tabW else w.paint.measureText(w.text) + space) } - space
                     val indent = if (firstLine) firstPx else 0f
@@ -698,7 +743,7 @@ object DocumentRenderer {
                         endedWithTable = false
                         val paint = TextPaint(basePaint).apply {
                             typeface = typeface(font, el.bold, el.italic)
-                            textSize = if (el.size > 0) el.size.toFloat() else 12f
+                            textSize = if (el.size > 0) el.size.toFloat() else 10f
                             color = autoColor(el.colorArgb)
                         }
                         el.text.split(" ").filter { it.isNotEmpty() }.forEach {
@@ -709,8 +754,12 @@ object DocumentRenderer {
                         if (tablePending.isNotEmpty()) { flushTableGroup() }
                         endedWithTable = false; spans.add(SpanWord("", basePaint, false, 0, tab = true)) }
                     is DocPageBreak -> {
+                        // Explicit page breaks are ignored in the PDF export so the
+                        // content flows continuously (auto-pagination via ensure() only
+                        // kicks in once the page is actually full).
                         if (tablePending.isNotEmpty()) { flushTableGroup() }
-                        endedWithTable = false; flushParagraph(); spans.clear(); newPage() }
+                        endedWithTable = false
+                    }
                     is DocTableEmbed -> {
                         endedWithTable = true
                         flushParagraph(); spans.clear()

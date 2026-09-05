@@ -14,7 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.*
 
-private val isoFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+private fun isoFmt(): SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
 val LocalDatePattern = compositionLocalOf { "dd.MM.yyyy" }
 
@@ -22,7 +22,7 @@ fun formatIsoDate(iso: String, pattern: String): String {
     if (iso.isBlank()) return ""
     return try {
         val fmt = SimpleDateFormat(pattern, Locale.getDefault())
-        fmt.format(isoFmt.parse(iso) ?: return iso)
+        fmt.format(isoFmt().parse(iso) ?: return iso)
     } catch (_: Exception) {
         iso
     }
@@ -31,10 +31,10 @@ fun formatIsoDate(iso: String, pattern: String): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateField(
+    modifier: Modifier = Modifier,
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
-    modifier: Modifier = Modifier.fillMaxWidth(),
     maxDate: Long? = null,
     minDate: Long? = null,
 ) {
@@ -44,7 +44,7 @@ fun DateField(
     val cal = remember(value, maxDate, minDate) {
         Calendar.getInstance().apply {
             if (value.isNotBlank()) {
-                try { time = isoFmt.parse(value) ?: Date() } catch (_: Exception) { }
+                try { time = isoFmt().parse(value) ?: Date() } catch (_: Exception) { }
             } else if (maxDate != null) {
                 timeInMillis = maxDate
             } else if (minDate != null) {
@@ -61,7 +61,7 @@ fun DateField(
                 context,
                 { _: android.widget.DatePicker, y, m, d ->
                     cal.set(y, m, d)
-                    onValueChange(isoFmt.format(cal.time))
+                    onValueChange(isoFmt().format(cal.time))
                 },
                 cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH),
             )
@@ -89,7 +89,7 @@ fun DateField(
         onValueChange = {},
         readOnly = true,
         label = { Text(label) },
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         interactionSource = interactionSource,
         trailingIcon = { Text(if (value.isBlank()) "выбрать" else display) },
     )
