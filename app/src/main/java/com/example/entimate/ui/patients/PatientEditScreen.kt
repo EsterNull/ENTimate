@@ -152,12 +152,14 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             emergency = values["emergency"] ?: "Нет",
             illnessStart = values["illnessStart"] ?: "",
             category = values["category"] ?: "по призыву",
+            diagnosis = values["diagnosis"]?.trim() ?: "",
             svo = if (values["svo"] == "true") 1 else 0,
             soch = if (values["soch"] == "true") 1 else 0,
             colorArgb = 0,
             createdAt = if (createdAt == 0L) System.currentTimeMillis() else createdAt,
             sortOrder = existingPatient?.sortOrder ?: 0,
             discharged = existingPatient?.discharged ?: 0,
+            dischargeDate = existingPatient?.dischargeDate ?: "",
             version = existingPatient?.version ?: CURRENT_DATA_VERSION,
         )
         scope.launch {

@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -113,7 +115,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
             title = { Text("Переоформление") },
             text = {
                 Column {
-                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме номера, даты поступления, начала заболевания/травмы (приравнивается к дате поступления) и поля «Кем направлен больной» (очищается).")
+                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме номера, даты поступления, начала заболевания/травмы (приравнивается к дате поступления), поля «Кем направлен больной» (очищается) и пользовательских полей (не заполняются).")
                     Spacer(Modifier.height(12.dp))
                     DateField(
                         value = reDate,
@@ -310,7 +312,7 @@ private fun PatientCard(p: PatientEntity, dateFormat: String = "dd.MM.yyyy", onC
 private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, customFields: List<com.example.entimate.data.local.PatientCustomFieldEntity>) {
     val p = pw.patient
     val fio = listOf(p.lastName, p.firstName, p.middleName).filter { it.isNotBlank() }.joinToString(" ")
-    val dateKeys = setOf("birthDate", "serviceDate", "admissionDate", "illnessStart")
+    val dateKeys = setOf("birthDate", "serviceDate", "admissionDate", "illnessStart", "dischargeDate")
     val displayFmt = remember(dateFormat) { SimpleDateFormat(dateFormat, Locale.getDefault()) }
     val isoFmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
     val customMap = remember(pw.customValues) { pw.customValues.associateBy { it.fieldId } }
@@ -325,7 +327,9 @@ private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, custo
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
     ) {
         if (fio.isNotBlank()) {
             Text(fio, style = MaterialTheme.typography.titleLarge)
@@ -339,22 +343,25 @@ private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, custo
         HorizontalDivider()
         Spacer(Modifier.height(12.dp))
 
-        PATIENT_FIELDS.forEach { def ->
-            val raw = patientValue(p, def.key)
-            val display = formatVal(def.key, raw)
-            if (display.isNotBlank()) {
-                DossierRow(label = def.label, value = display)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 32.dp),
+        ) {
+            PATIENT_FIELDS.forEach { def ->
+                val raw = patientValue(p, def.key)
+                val display = formatVal(def.key, raw)
+                DossierRow(label = def.label, value = display.ifBlank { "—" })
             }
-        }
 
-        customFields.forEach { cf ->
-            val raw = customMap[cf.id]?.value ?: ""
-            if (raw.isNotBlank()) {
-                DossierRow(label = cf.label, value = raw)
+            customFields.forEach { cf ->
+                val raw = customMap[cf.id]?.value ?: ""
+                DossierRow(label = cf.label, value = raw.ifBlank { "—" })
             }
-        }
 
-        Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
 

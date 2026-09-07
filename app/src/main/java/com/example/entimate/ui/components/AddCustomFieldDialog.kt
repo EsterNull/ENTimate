@@ -1,11 +1,15 @@
 package com.example.entimate.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.entimate.data.local.PatientCustomFieldEntity
 import com.example.entimate.ui.stripNewlines
@@ -22,34 +26,96 @@ fun AddCustomFieldDialog(
     var options by remember { mutableStateOf(initial?.options ?: "") }
     var default by remember { mutableStateOf(initial?.defaultValue ?: "") }
     var typeExpanded by remember { mutableStateOf(false) }
+    var defaultExpanded by remember { mutableStateOf(false) }
+    var newOption by remember { mutableStateOf("") }
     val types = listOf("TEXT" to "Текст", "NUMBER" to "Число", "DATE" to "Дата", "DROPDOWN" to "Список", "CHECKBOX" to "Чекбокс")
+
+    val optionList = remember(options) {
+        options.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    }
+
+    fun applyOptions(list: List<String>) {
+        options = list.joinToString(",")
+        if (default.isNotBlank() && !list.contains(default)) default = ""
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Новое поле" else "Изменить поле") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(value = label, onValueChange = { label = it.stripNewlines() }, label = { Text("Название") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
                 ExposedDropdownMenuBox(expanded = typeExpanded, onExpandedChange = { typeExpanded = it }, modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = types.first { it.first == type }.second, onValueChange = {}, readOnly = true, label = { Text("Тип") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                     )
                     ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
                         types.forEach { t -> DropdownMenuItem(text = { Text(t.second) }, onClick = { type = t.first; typeExpanded = false }) }
                     }
                 }
                 if (type == "DROPDOWN") {
-                    OutlinedTextField(
-                        value = options, onValueChange = { options = it.stripNewlines() },
-                        label = { Text("Варианты (через запятую)") }, modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = TextKeyboardOptions,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = newOption, onValueChange = { newOption = it.stripNewlines() },
+                            label = { Text("Новый вариант") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = TextKeyboardOptions,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        FilledTonalButton(onClick = {
+                            val trimmed = newOption.trim()
+                            if (trimmed.isNotBlank() && !optionList.contains(trimmed)) {
+                                applyOptions(optionList + trimmed)
+                                newOption = ""
+                            }
+                        }) {
+                            Icon(Icons.Filled.Add, contentDescription = null)
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    if (optionList.isEmpty()) {
+                        Text("Вариантов пока нет. Добавьте хотя бы один.", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall)
+                    } else {
+                        optionList.forEachIndexed { idx, opt ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(opt, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                                IconButton(onClick = { applyOptions(optionList.toMutableList().also { it.removeAt(idx) }) }) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Удалить вариант", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    ExposedDropdownMenuBox(expanded = defaultExpanded, onExpandedChange = { defaultExpanded = it }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = if (optionList.contains(default)) default else "",
+                            onValueChange = {}, readOnly = true,
+                            label = { Text("Значение по умолчанию") },
+                            placeholder = { Text(if (optionList.isEmpty()) "Сначала добавьте варианты" else "Не задано") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(defaultExpanded) },
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                            enabled = optionList.isNotEmpty(),
+                            leadingIcon = if (default.isNotBlank()) ({
+                                IconButton(onClick = { default = "" }) { Icon(Icons.Filled.Close, contentDescription = "Сбросить", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            }) else null,
+                        )
+                        ExposedDropdownMenu(expanded = defaultExpanded, onDismissRequest = { defaultExpanded = false }) {
+                            optionList.forEach { o ->
+                                DropdownMenuItem(text = { Text(o) }, onClick = { default = o; defaultExpanded = false })
+                            }
+                        }
+                    }
+                } else {
+                    OutlinedTextField(value = default, onValueChange = { default = it.stripNewlines() }, label = { Text("Значение по умолчанию") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
                 }
-                OutlinedTextField(value = default, onValueChange = { default = it.stripNewlines() }, label = { Text("Значение по умолчанию") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
             }
         },
         confirmButton = {
-            TextButton(onClick = { if (label.isNotBlank()) onConfirm(label.trim(), type, options.trim(), default.trim()) }) { Text("Сохранить") }
+            TextButton(onClick = {
+                if (label.isNotBlank()) {
+                    if (type == "DROPDOWN" && optionList.isEmpty()) return@TextButton
+                    onConfirm(label.trim(), type, options.trim(), default.trim())
+                }
+            }) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )

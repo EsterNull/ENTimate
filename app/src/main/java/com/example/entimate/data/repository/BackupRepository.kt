@@ -193,10 +193,12 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("emergency", it.emergency)
                 put("illnessStart", it.illnessStart)
                 put("category", it.category)
+                put("diagnosis", it.diagnosis)
                 put("svo", it.svo)
                 put("soch", it.soch)
                 put("personalNumber", it.personalNumber)
                 put("discharged", it.discharged)
+                put("dischargeDate", it.dischargeDate)
                 put("colorArgb", it.colorArgb)
                 put("createdAt", it.createdAt)
             }
@@ -503,10 +505,12 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         emergency = o.optString("emergency", "Нет"),
                         illnessStart = o.optString("illnessStart", ""),
                         category = o.optString("category", "по призыву"),
+                        diagnosis = o.optString("diagnosis", ""),
                         svo = o.optInt("svo", 0),
                         soch = o.optInt("soch", 0),
                         personalNumber = o.optString("personalNumber", ""),
                         discharged = o.optInt("discharged", 0),
+                        dischargeDate = o.optString("dischargeDate", ""),
                         colorArgb = o.optInt("colorArgb", 0),
                         createdAt = o.optLong("createdAt", 0L)
                     )

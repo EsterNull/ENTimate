@@ -27,8 +27,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.repository.BackupRepository
+import com.example.entimate.data.update.AppUpdater
+import com.example.entimate.data.update.UpdateChecker
+import com.example.entimate.data.update.UpdateInfo
 import com.example.entimate.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +44,31 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
     val snackbar = remember { SnackbarHostState() }
     var status by remember { mutableStateOf("") }
     val settings by vm.settings.collectAsStateWithLifecycle()
+    var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
+
+    val installPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (AppUpdater.canRequestInstalls(context)) {
+            val st = updateState
+            if (st is UpdateUiState.Ready) {
+                AppUpdater.install(context, st.file)
+                updateState = UpdateUiState.Idle
+            }
+        }
+    }
+
+    suspend fun downloadUpdate(info: UpdateInfo) {
+        try {
+            val file = AppUpdater.download(context, info.downloadUrl) { done, total ->
+                updateState = UpdateUiState.Downloading(if (total > 0) done.toFloat() / total else -1f)
+            }
+            updateState = UpdateUiState.Ready(file)
+        } catch (e: Exception) {
+            updateState = UpdateUiState.Idle
+            snackbar.showSnackbar("Ошибка загрузки обновления: ${e.message}")
+        }
+    }
 
     val dateFormats = listOf(
         "dd.MM.yyyy" to "дд.мм.гггг (15.01.2024)",
@@ -151,7 +180,7 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
             }
             Text("О приложении", style = MaterialTheme.typography.titleMedium)
             Text(
-                "ENTimate — приложение для учёта количества документов: карточки документов, пациенты, связи между ними и отчёты. Все данные хранятся локально на устройстве, интернет не требуется.",
+                "ENTimate — приложение для учёта количества документов: карточки документов, пациенты, связи между ними и отчёты. Все данные хранятся локально на устройстве. Интернет используется только для проверки обновлений.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(4.dp))
@@ -167,8 +196,97 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
             }
             Spacer(Modifier.height(4.dp))
             Text("Версия: ${versionName ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(
+                onClick = {
+                    updateState = UpdateUiState.Checking
+                    scope.launch {
+                        updateState = try {
+                            val info = UpdateChecker.check()
+                            if (UpdateChecker.isNewer(info.version, versionName.orEmpty())) {
+                                UpdateUiState.Found(info)
+                            } else {
+                                snackbar.showSnackbar("Установлена актуальная версия")
+                                UpdateUiState.Idle
+                            }
+                        } catch (e: Exception) {
+                            snackbar.showSnackbar("Не удалось проверить обновления: ${e.message}")
+                            UpdateUiState.Idle
+                        }
+                    }
+                },
+                enabled = updateState !is UpdateUiState.Checking && updateState !is UpdateUiState.Downloading,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (updateState is UpdateUiState.Checking) "Проверка..." else "Проверить обновления") }
         }
     }
+
+    when (val st = updateState) {
+        is UpdateUiState.Found -> AlertDialog(
+            onDismissRequest = { updateState = UpdateUiState.Idle },
+            title = { Text("Доступна новая версия ${st.info.version}") },
+            text = { Text(st.info.body.ifBlank { "Выпущена новая версия приложения." }) },
+            confirmButton = {
+                TextButton(onClick = {
+                    updateState = UpdateUiState.Downloading(-1f)
+                    scope.launch { downloadUpdate(st.info) }
+                }) { Text("Скачать") }
+            },
+            dismissButton = {
+                TextButton(onClick = { updateState = UpdateUiState.Idle }) { Text("Позже") }
+            },
+        )
+        is UpdateUiState.Downloading -> AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Загрузка обновления") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (st.progress >= 0f) {
+                        LinearProgressIndicator(progress = { st.progress }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        Text("${(st.progress * 100).toInt()} %")
+                    } else {
+                        CircularProgressIndicator()
+                    }
+                }
+            },
+            confirmButton = { },
+        )
+        is UpdateUiState.Ready -> AlertDialog(
+            onDismissRequest = { updateState = UpdateUiState.Idle },
+            title = { Text("Обновление загружено") },
+            text = {
+                Text(
+                    if (AppUpdater.canRequestInstalls(context)) {
+                        "Новая версия скачана. Нажмите «Установить», чтобы обновить приложение."
+                    } else {
+                        "Разрешите установку приложений из неизвестных источников, вернитесь и нажмите «Установить»."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (AppUpdater.canRequestInstalls(context)) {
+                        AppUpdater.install(context, st.file)
+                        updateState = UpdateUiState.Idle
+                    } else {
+                        AppUpdater.installPermissionIntent(context)?.let { installPermLauncher.launch(it) }
+                    }
+                }) { Text("Установить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { updateState = UpdateUiState.Idle }) { Text("Позже") }
+            },
+        )
+        else -> {}
+    }
+}
+
+private sealed interface UpdateUiState {
+    data object Idle : UpdateUiState
+    data object Checking : UpdateUiState
+    data class Found(val info: UpdateInfo) : UpdateUiState
+    data class Downloading(val progress: Float) : UpdateUiState
+    data class Ready(val file: File) : UpdateUiState
 }
 
 private class CreateBackupDocument : ActivityResultContract<String, Uri?>() {

@@ -1,0 +1,100 @@
+name: Release APK
+
+on:
+  push:
+    branches: [ master, main ]
+    paths-ignore:
+      - 'README.md'
+      - '.github/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Get version from code
+        id: version
+        run: |
+          APP_VERSION=$(sed -n 's/.*versionName *= *"\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check version vs latest release
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          APP_VERSION="${{ steps.version.outputs.app_version }}"
+          LATEST_TAG=$(curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null \
+            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1) || true
+          NORM_APP="${APP_VERSION#v}"
+          NORM_LATEST="${LATEST_TAG#v}"
+          if [ -z "$LATEST_TAG" ] || [ "$NORM_APP" != "$NORM_LATEST" ]; then
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::New version detected: $APP_VERSION (latest release: ${LATEST_TAG:-none})"
+          else
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Version $APP_VERSION is already the latest release; skipping"
+          fi
+
+      - name: Build release APK
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          GRADLE_OPTS: -Xmx4g
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      - name: Prepare signing keystore
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.github/keystore"
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/.github/keystore/release.jks"
+          else
+            keytool -genkeypair -v -noprompt \
+              -keystore "$GITHUB_WORKSPACE/.github/keystore/release.jks" \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=ENTimate CI, O=ENTimate, C=RU"
+          fi
+
+      - name: Sign APK
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}"
+          BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          [ -n "$BUILD_TOOLS" ] || { echo "apksigner not found"; exit 1; }
+          STORE_PASS="${ANDROID_KEYSTORE_PASSWORD:-android}"
+          KEY_PASS="${ANDROID_KEY_PASSWORD:-$STORE_PASS}"
+          KEY_ALIAS="${ANDROID_KEY_ALIAS:-androiddebugkey}"
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$GITHUB_WORKSPACE/.github/keystore/release.jks" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$STORE_PASS" \
+            --key-pass "pass:$KEY_PASS" \
+            --out app/build/outputs/apk/release/ENTimate.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Create release and upload APK
+        if: steps.check.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.app_version }}
+          name: ${{ steps.version.outputs.app_version }}
+          files: app/build/outputs/apk/release/ENTimate.apk
+          body: |
+            Автоматический релиз приложения.
+          generate_release_notes: true

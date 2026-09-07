@@ -36,6 +36,7 @@ fun CustomFieldsScreen(nav: NavController) {
     val fields by repo.customFieldsFlow.collectAsStateWithLifecycle(emptyList())
     var showDialog by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<PatientCustomFieldEntity?>(null) }
+    var pendingDelete by remember { mutableStateOf<PatientCustomFieldEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -74,7 +75,7 @@ fun CustomFieldsScreen(nav: NavController) {
                                 Spacer(Modifier.height(6.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                     TextButton(onClick = { editing = cf; showDialog = true }) { Text("Изменить") }
-                                    IconButton(onClick = { scope.launch { repo.deleteCustomField(cf) } }) { Icon(Icons.Filled.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.error) }
+                                    IconButton(onClick = { pendingDelete = cf }) { Icon(Icons.Filled.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.error) }
                                 }
                             }
                         }
@@ -82,6 +83,21 @@ fun CustomFieldsScreen(nav: NavController) {
                 }
             }
         }
+    }
+
+    if (pendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Удалить поле?") },
+            text = { Text("Поле «${pendingDelete!!.label}» и его значения у всех пациентов будут удалены безвозвратно.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch { repo.deleteCustomField(pendingDelete!!) }
+                    pendingDelete = null
+                }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Отмена") } },
+        )
     }
 
     if (showDialog) {

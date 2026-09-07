@@ -6,6 +6,11 @@ import com.example.entimate.data.local.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+fun todayIso(): String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
 class PatientRepository(private val db: AppDatabase) {
     private val patientDao = db.patientDao()
@@ -30,7 +35,6 @@ class PatientRepository(private val db: AppDatabase) {
         val id = if (toSave.id == 0L) {
             patientDao.insertPatient(toSave)
         } else {
-            revertEffects(toSave.id, recordStats = true)
             patientDao.updatePatient(toSave)
             toSave.id
         }
@@ -40,7 +44,7 @@ class PatientRepository(private val db: AppDatabase) {
                 patientDao.insertCustomValue(PatientCustomValueEntity(patientId = id, fieldId = fid, value = value))
             }
         }
-        applyEffects(id, recordStats = true)
+        syncEffects(id, recordStats = true)
         id
     }
 
@@ -50,12 +54,11 @@ class PatientRepository(private val db: AppDatabase) {
     }
 
     suspend fun dischargePatient(patient: PatientEntity) = db.withTransaction {
-        patientDao.updatePatient(patient.copy(discharged = 1))
+        patientDao.updatePatient(patient.copy(discharged = 1, dischargeDate = todayIso()))
     }
 
     suspend fun reregisterPatient(old: PatientEntity, admissionDate: String, newNumber: Int? = null): Long = db.withTransaction {
-        patientDao.updatePatient(old.copy(discharged = 1))
-        val oldValues = patientDao.getCustomValues(old.id)
+        patientDao.updatePatient(old.copy(discharged = 1, dischargeDate = todayIso()))
         val fresh = old.copy(
             id = 0,
             number = newNumber ?: old.number,
@@ -63,13 +66,13 @@ class PatientRepository(private val db: AppDatabase) {
             illnessStart = admissionDate,
             referredBy = "",
             discharged = 0,
+            dischargeDate = "",
             createdAt = System.currentTimeMillis(),
             sortOrder = patientDao.getMaxSortOrder() + 1,
             version = CURRENT_DATA_VERSION,
         )
         val id = patientDao.insertPatient(fresh)
-        oldValues.forEach { v -> patientDao.insertCustomValue(v.copy(id = 0, patientId = id)) }
-        applyEffects(id, recordStats = true)
+        syncEffects(id, recordStats = true)
         id
     }
 
@@ -103,8 +106,7 @@ class PatientRepository(private val db: AppDatabase) {
     suspend fun recomputeAllEffects() = db.withTransaction {
         val all = patientDao.getAllPatientsWithValues()
         all.forEach { p ->
-            revertEffects(p.patient.id)
-            applyEffects(p.patient.id)
+            syncEffects(p.patient.id)
         }
     }
 
@@ -129,37 +131,54 @@ class PatientRepository(private val db: AppDatabase) {
         return patientValue(p, key)
     }
 
-    private suspend fun applyEffects(patientId: Long, recordStats: Boolean = false) {
+    private fun netsFor(links: List<PatientFieldLinkEntity>, p: PatientEntity, cvMap: Map<Long, String>): Map<Long, Int> {
+        val docIds = links.map { it.documentId }.distinct()
+        return docIds.associateWith { docId ->
+            links.filter { it.documentId == docId }.sumOf { link -> effectFor(link, p, cvMap) }
+        }
+    }
+
+    /**
+     * Brings the patient's linked-document effects in sync with the current field values:
+     * applies only the difference between the desired net and the already-stored net for
+     * each document. When nothing relevant changed, nothing is applied and no statistics
+     * entry is created.
+     */
+    private suspend fun syncEffects(patientId: Long, recordStats: Boolean = false) {
         val p = patientDao.getWithValues(patientId) ?: return
         val cvMap = p.customValues.associate { it.fieldId to it.value }
         val links = patientDao.getAllLinks()
-        val docIds = links.map { it.documentId }.toSet()
-        var totalNet = 0
+        val newNets = netsFor(links, p.patient, cvMap)
+        val oldEffects = patientDao.getEffects(patientId).associate { it.documentId to it.netDelta }
+        val docIds = (newNets.keys + oldEffects.keys).toSet()
         for (docId in docIds) {
-            val net = links.filter { it.documentId == docId }.sumOf { link -> effectFor(link, p.patient, cvMap) }
-            totalNet += net
-            if (net != 0) {
+            val newNet = newNets[docId] ?: 0
+            val oldNet = oldEffects[docId] ?: 0
+            val delta = newNet - oldNet
+            if (delta != 0) {
                 val d = documentDao.getById(docId)
                 val oldQty = d?.quantity ?: 0
-                documentDao.addQuantity(docId, net)
-                patientDao.insertEffect(PatientDocumentEffectEntity(patientId = patientId, documentId = docId, netDelta = net))
+                documentDao.addQuantity(docId, delta)
                 if (recordStats) {
                     documentDao.insertChange(
                         DocumentChangeEntity(
                             documentId = docId,
                             timestamp = System.currentTimeMillis(),
-                            delta = net,
-                            qtyAfter = oldQty + net,
+                            delta = delta,
+                            qtyAfter = oldQty + delta,
                             patientId = patientId,
                         )
                     )
                 }
-                effectLog.tryEmit("Связь «${d?.name ?: "#$docId"}»: ${if (net > 0) "+" else ""}$net")
+                effectLog.tryEmit("Связь «${d?.name ?: "#$docId"}»: ${if (delta > 0) "+" else ""}$delta")
+                Log.d("ENT", "syncEffects patient=$patientId doc=$docId delta=$delta")
             }
-            Log.d("ENT", "applyEffects patient=$patientId doc=$docId net=$net")
         }
-        if (totalNet == 0 && links.isNotEmpty()) {
-            effectLog.tryEmit("Связи: ни одно условие не совпало — счётчик не изменён")
+        patientDao.deleteEffects(patientId)
+        newNets.forEach { (docId, net) ->
+            if (net != 0) {
+                patientDao.insertEffect(PatientDocumentEffectEntity(patientId = patientId, documentId = docId, netDelta = net))
+            }
         }
     }
 

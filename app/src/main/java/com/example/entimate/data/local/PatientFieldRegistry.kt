@@ -39,6 +39,7 @@ val PATIENT_FIELDS: List<PatientFieldDef> = listOf(
     PatientFieldDef("emergency", "Доставлен по экстренным показаниям", "SWITCH", false, false),
     PatientFieldDef("illnessStart", "Начало заболевания, травмы", "DATE", false, false),
     PatientFieldDef("category", "Категория", "DROPDOWN", true, true, "по призыву,по контракту,по мобилизации,военные сборы,курсант,курсант-контрактник,абитуриент"),
+    PatientFieldDef("diagnosis", "Диагноз", "TEXT", false, true),
     PatientFieldDef("personalNumber", "Личный номер", "TEXT", false, true),
     PatientFieldDef("svo", "СВО", "CHECKBOX", false, true),
     PatientFieldDef("soch", "СОЧ", "CHECKBOX", false, true),
@@ -46,6 +47,7 @@ val PATIENT_FIELDS: List<PatientFieldDef> = listOf(
 
 val REPORT_SPECIAL_FIELDS: List<PatientFieldDef> = listOf(
     PatientFieldDef("discharged", "Выписан", "CHECKBOX", false, false),
+    PatientFieldDef("dischargeDate", "Дата выписки", "DATE", false, false),
 )
 
 fun patientFieldByKey(key: String): PatientFieldDef? =
@@ -78,9 +80,11 @@ fun patientValue(p: PatientEntity, key: String): String = when (key) {
     "emergency" -> p.emergency
     "illnessStart" -> p.illnessStart
     "category" -> p.category
+    "diagnosis" -> p.diagnosis
     "svo" -> if (p.svo == 1) "true" else "false"
     "soch" -> if (p.soch == 1) "true" else "false"
     "discharged" -> if (p.discharged == 1) "true" else "false"
+    "dischargeDate" -> p.dischargeDate
     else -> ""
 }
 

@@ -124,9 +124,11 @@ fun PatientEntity.migrate(): PatientEntity = migrateVersioned(
             "emergency" to p.emergency,
             "illnessStart" to p.illnessStart,
             "category" to p.category,
+            "diagnosis" to p.diagnosis,
             "svo" to p.svo.toString(),
             "soch" to p.soch.toString(),
             "discharged" to p.discharged.toString(),
+            "dischargeDate" to p.dischargeDate,
             "colorArgb" to p.colorArgb.toString(),
             "createdAt" to p.createdAt.toString(),
         )
@@ -152,9 +154,11 @@ fun PatientEntity.migrate(): PatientEntity = migrateVersioned(
             emergency = m["emergency"] ?: "Нет",
             illnessStart = m["illnessStart"] ?: "",
             category = m["category"] ?: "по призыву",
+            diagnosis = m["diagnosis"] ?: "",
             svo = m["svo"]?.toIntOrNull() ?: 0,
             soch = m["soch"]?.toIntOrNull() ?: 0,
             discharged = m["discharged"]?.toIntOrNull() ?: 0,
+            dischargeDate = m["dischargeDate"] ?: "",
             colorArgb = m["colorArgb"]?.toIntOrNull() ?: 0,
             createdAt = m["createdAt"]?.toLongOrNull() ?: 0L,
         )

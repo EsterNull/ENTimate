@@ -13,8 +13,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -128,6 +130,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
     var showColumnPicker by remember { mutableStateOf(false) }
     var showFilterPicker by remember { mutableStateOf(false) }
     var editingColumn by remember { mutableStateOf(-1) }
+    val collapsedInterp = remember { mutableStateMapOf<Long, Boolean>() }
 
     val fieldOpts by remember(customFields) { mutableStateOf(buildFieldOpts(customFields)) }
     val optByKey = remember(fieldOpts) { fieldOpts.associateBy { it.key } }
@@ -217,8 +220,22 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                                     Icon(Icons.Filled.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
+                            val dropdownKeys = colKeys.filter { optByKey[it]?.type == "DROPDOWN" }
+                    val hasInterp = containsCheckbox || dropdownKeys.isNotEmpty()
+                    if (hasInterp) {
+                        val interpExpanded = collapsedInterp[col.id] ?: false
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(enabled = true, onClick = { collapsedInterp[col.id] = !interpExpanded })) {
+                            Icon(
+                                if (interpExpanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = if (interpExpanded) "Свернуть интерпретацию" else "Развернуть интерпретацию",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Text("Интерпретация", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        }
+                        if (interpExpanded) {
                             if (containsCheckbox) {
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(4.dp))
                                 Text("Интерпретация флажка в таблице (пустое — пустая ячейка):", style = MaterialTheme.typography.labelMedium)
                                 Spacer(Modifier.height(4.dp))
                                 OutlinedTextField(
@@ -229,26 +246,16 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                                     keyboardOptions = TextKeyboardOptions,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                     OutlinedTextField(
-                         value = col.falseText,
-                         onValueChange = { v -> columns[idx] = columns[idx].copy(falseText = v.stripNewlines()) },
-                         label = { Text("Если не отмечено") },
-                         singleLine = true,
-                         keyboardOptions = if (idx == columns.lastIndex) TextKeyboardOptionsDone else TextKeyboardOptions,
-                         keyboardActions = if (idx == columns.lastIndex) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
-                         modifier = Modifier.fillMaxWidth(),
-                     )
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = col.hideValues == 1,
-                                    onCheckedChange = { v -> columns[idx] = columns[idx].copy(hideValues = if (v) 1 else 0) },
+                                OutlinedTextField(
+                                    value = col.falseText,
+                                    onValueChange = { v -> columns[idx] = columns[idx].copy(falseText = v.stripNewlines()) },
+                                    label = { Text("Если не отмечено") },
+                                    singleLine = true,
+                                    keyboardOptions = if (idx == columns.lastIndex) TextKeyboardOptionsDone else TextKeyboardOptions,
+                                    keyboardActions = if (idx == columns.lastIndex) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
+                                    modifier = Modifier.fillMaxWidth(),
                                 )
-                                Spacer(Modifier.width(6.dp))
-                                Text("Скрыть значения (оставить только заголовок)", style = MaterialTheme.typography.labelMedium)
                             }
-                            val dropdownKeys = colKeys.filter { optByKey[it]?.type == "DROPDOWN" }
                             if (dropdownKeys.isNotEmpty()) {
                                 val map = parseDropdownMap(col.dropdownMap)
                                 Spacer(Modifier.height(6.dp))
@@ -297,6 +304,17 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+                            Spacer(Modifier.height(6.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = col.hideValues == 1,
+                                    onCheckedChange = { v -> columns[idx] = columns[idx].copy(hideValues = if (v) 1 else 0) },
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Скрыть значения (оставить только заголовок)", style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
