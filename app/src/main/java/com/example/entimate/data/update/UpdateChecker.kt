@@ -1,5 +1,7 @@
 package com.example.entimate.data.update
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -15,7 +17,7 @@ object UpdateChecker {
     private const val API_URL = "https://api.github.com/repos/EsterNull/ENTimate/releases/latest"
     private const val USER_AGENT = "ENTimate"
 
-    fun check(): UpdateInfo {
+    suspend fun check(): UpdateInfo = withContext(Dispatchers.IO) {
         val conn = URL(API_URL).openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "GET"
@@ -34,7 +36,7 @@ object UpdateChecker {
                 .firstOrNull { it.optString("name").endsWith(".apk") }
                 ?.optString("browser_download_url")
                 ?: throw RuntimeException("В релизе не найден APK-файл")
-            return UpdateInfo(
+            UpdateInfo(
                 version = json.optString("tag_name", "").removePrefix("v"),
                 downloadUrl = downloadUrl,
                 releaseName = json.optString("name", "").ifBlank { json.optString("tag_name", "") },

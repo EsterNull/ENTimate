@@ -66,7 +66,7 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
             updateState = UpdateUiState.Ready(file)
         } catch (e: Exception) {
             updateState = UpdateUiState.Idle
-            snackbar.showSnackbar("Ошибка загрузки обновления: ${e.message}")
+            snackbar.showSnackbar("Ошибка загрузки обновления: ${e.message ?: "неизвестная ошибка"}")
         }
     }
 
@@ -209,7 +209,7 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
                                 UpdateUiState.Idle
                             }
                         } catch (e: Exception) {
-                            snackbar.showSnackbar("Не удалось проверить обновления: ${e.message}")
+                            snackbar.showSnackbar("Не удалось проверить обновления: ${e.message ?: "проверьте подключение к интернету"}")
                             UpdateUiState.Idle
                         }
                     }
