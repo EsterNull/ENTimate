@@ -20,15 +20,29 @@ for /f "delims=" %%i in ('dir /b /ad /o-n "%ANDROID_SDK%\build-tools"') do (
 
 set IN=app\build\outputs\apk\release\app-release-unsigned.apk
 set OUT=app\build\outputs\apk\release\ENTimate.apk
-set KS=%USERPROFILE%\.android\debug.keystore
 
-echo Signing to %OUT% using %BUILD_TOOLS%...
-call "%BUILD_TOOLS%\apksigner.bat" sign ^
-    --ks "%KS%" ^
-    --ks-key-alias androiddebugkey ^
-    --ks-pass pass:android ^
-    --key-pass pass:android ^
-    --out "%OUT%" "%IN%"
+if exist "%USERPROFILE%\.android\entimate-release.jks" (
+    set KS=%USERPROFILE%\.android\entimate-release.jks
+    set KS_ALIAS=release
+    set KS_PASS=%~1
+    if "%KS_PASS%"=="" set KS_PASS=android
+    echo Signing to %OUT% using %BUILD_TOOLS% (release keystore)...
+    call "%BUILD_TOOLS%\apksigner.bat" sign ^
+        --ks "%KS%" ^
+        --ks-key-alias %KS_ALIAS% ^
+        --ks-pass pass:%KS_PASS% ^
+        --key-pass pass:%KS_PASS% ^
+        --out "%OUT%" "%IN%"
+) else (
+    set KS=%USERPROFILE%\.android\debug.keystore
+    echo Signing to %OUT% using %BUILD_TOOLS% (debug keystore)...
+    call "%BUILD_TOOLS%\apksigner.bat" sign ^
+        --ks "%KS%" ^
+        --ks-key-alias androiddebugkey ^
+        --ks-pass pass:android ^
+        --key-pass pass:android ^
+        --out "%OUT%" "%IN%"
+)
 if errorlevel 1 (
     echo SIGNING FAILED
     exit /b 1

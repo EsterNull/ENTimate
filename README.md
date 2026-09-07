@@ -29,14 +29,23 @@
 
 При пуше в ветку `master`/`main` срабатывает workflow `.github/workflows/release-apk.yml`: он сравнивает версию из `app/build.gradle.kts` с тегом последнего релиза и, если она отличается, собирает APK и выпускает новый релиз под тегом этой версии. Запуск можно также выполнить вручную (вкладка Actions → Release APK → Run workflow).
 
-Для стабильных обновлений (чтобы подписи APK совпадали между релизами) задайте в секретах репозитория:
+Для стабильных обновлений нужен постоянный ключ подписи (иначе каждая сборка CI подписывается новым временным ключом, и система отказывает в обновлении поверх предыдущей версии). Чтобы завести его:
 
-- `ANDROID_KEYSTORE_BASE64` — keystore в base64
-- `ANDROID_KEYSTORE_PASSWORD` (необязательно, по умолчанию `android`)
-- `ANDROID_KEY_ALIAS` (необязательно, по умолчанию `androiddebugkey`)
-- `ANDROID_KEY_PASSWORD` (необязательно, равен паролю keystore)
+1. Один раз сгенерируйте keystore и сохраните его вне репозитория, например `~/.android/entimate-release.jks`:
+   ```
+   keytool -genkeypair -v -noprompt -keyalg RSA -keysize 4096 -validity 10000 \
+     -alias release -keystore ~/.android/entimate-release.jks \
+     -storepass <пароль> -keypass <пароль> -dname "CN=ENTimate"
+   ```
+2. Задайте в секретах репозитория (Settings → Secrets and variables → Actions):
+   - `ANDROID_KEYSTORE_BASE64` — содержимое `.jks` в base64: `base64 -w0 ~/.android/entimate-release.jks`
+   - `ANDROID_KEYSTORE_PASSWORD` (необязательно, по умолчанию `android`)
+   - `ANDROID_KEY_ALIAS` (необязательно, по умолчанию `androiddebugkey`)
+   - `ANDROID_KEY_PASSWORD` (необязательно, равен паролю keystore)
 
-Без секретов APK подписывается временным debug-ключом: устанавливается, но обновляться поверх предыдущих сборок может не будет.
+Если keystore лежит в `~/.android/entimate-release.jks`, локальная сборка `build_release.bat` подпишет APK тем же ключом (пароль передаётся первым аргументом).
+
+Без секретов APK подписывается временным debug-ключом: устанавливается, но обновляться поверх предыдущих сборок не может.
 
 ## Сборка
 
