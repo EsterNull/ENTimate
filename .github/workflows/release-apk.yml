@@ -5,7 +5,6 @@ on:
     branches: [ master, main ]
     paths-ignore:
       - 'README.md'
-      - '.github/**'
   workflow_dispatch:
 
 permissions:
@@ -55,7 +54,7 @@ jobs:
         if: steps.check.outputs.should_release == 'true'
         env:
           GRADLE_OPTS: -Xmx4g
-        run: ./gradlew --no-daemon :app:assembleRelease
+        run: chmod +x ./gradlew && ./gradlew --no-daemon :app:assembleRelease
 
       - name: Prepare signing keystore
         if: steps.check.outputs.should_release == 'true'
