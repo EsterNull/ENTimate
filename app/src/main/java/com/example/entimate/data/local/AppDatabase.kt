@@ -424,7 +424,7 @@ abstract class AppDatabase : RoomDatabase() {
 
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
-                            val c = db.query("SELECT COUNT(*) FROM documents")
+                            val c = db.query("SELECT COUNT(*) FROM folders")
                             c.moveToFirst()
                             val count = c.getInt(0)
                             c.close()
@@ -438,16 +438,13 @@ abstract class AppDatabase : RoomDatabase() {
             PATIENT_FIELDS.filter { it.defaultVisible }.map { it.key }
 
         private fun seedClinicalData(db: SupportSQLiteDatabase) {
-            val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            val today = dateFmt.format(Date())
-
-                fun insertReport(name: String, desc: String, color: Int): Long {
-                    val cv = ContentValues().apply {
-                        put("name", name); put("description", desc); put("colorArgb", color); put("sortOrder", 0)
-                        put("kind", "DOCUMENTS"); put("version", CURRENT_DATA_VERSION); put("extras", "")
-                    }
-                    return db.insert("reports", SQLiteDatabase.CONFLICT_IGNORE, cv)
+            fun insertReport(name: String, desc: String, color: Int): Long {
+                val cv = ContentValues().apply {
+                    put("name", name); put("description", desc); put("colorArgb", color); put("sortOrder", 0)
+                    put("kind", "DOCUMENTS"); put("version", CURRENT_DATA_VERSION); put("extras", "")
                 }
+                return db.insert("reports", SQLiteDatabase.CONFLICT_IGNORE, cv)
+            }
             fun insertCol(reportId: Long, fieldKey: String, position: Int): Long {
                 val cv = ContentValues().apply {
                     put("reportId", reportId)
@@ -460,27 +457,10 @@ abstract class AppDatabase : RoomDatabase() {
                 }
                 return db.insert("report_columns", SQLiteDatabase.CONFLICT_IGNORE, cv)
             }
-            fun documentIdByName(name: String): Long {
-                val c = db.query("SELECT id FROM documents WHERE name = ?", arrayOf(name))
-                val id = if (c.moveToFirst()) c.getLong(0) else 0L
-                c.close()
-                return id
-            }
-            fun insertLink(sourceKey: String, conditionValue: String, docId: Long, operation: String, amount: Int): Long {
-                val cv = ContentValues().apply {
-                    put("sourceKey", sourceKey); put("conditionValue", conditionValue)
-                    put("documentId", docId); put("operation", operation); put("amount", amount); put("folderId", 1)
-                }
-                return db.insert("patient_field_links", SQLiteDatabase.CONFLICT_IGNORE, cv)
-            }
 
             // Сводка по пациентам (видимые поля)
             val rp = insertReport("Сводка по пациентам", "Таблица пациентов с выбранными полями", 0)
             defaultVisibleFieldKeys().forEachIndexed { idx, key -> insertCol(rp, key, idx) }
-
-            // Связь: включённый СВО уменьшает «Анкеты СВО» на 1
-            val svoDoc = documentIdByName("Анкеты СВО")
-            if (svoDoc != 0L) insertLink("svo", "true", svoDoc, "DECREASE", 1)
         }
 
         private fun seedDatabase(db: SupportSQLiteDatabase) {
@@ -490,28 +470,6 @@ abstract class AppDatabase : RoomDatabase() {
                     "INSERT OR IGNORE INTO folders (id, name, description, colorArgb, sortOrder, version, extras) " +
                         "VALUES (1, 'По умолчанию', '', 0, 0, 1, '')"
                 )
-                val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                val today = dateFmt.format(Date())
-
-                var docOrder = 0
-                fun insertDoc(name: String, desc: String, color: Int, qty: Int, step: Int = 1): Long {
-                    val cv = ContentValues().apply {
-                        put("name", name); put("description", desc); put("colorArgb", color); put("quantity", qty); put("step", step); put("sortOrder", docOrder++)
-                        put("version", CURRENT_DATA_VERSION); put("extras", "")
-                    }
-                    return db.insert("documents", SQLiteDatabase.CONFLICT_IGNORE, cv)
-                }
-
-                insertDoc("Анкеты СВО", "", 0, 0)
-                insertDoc("Выписной эпикриз (Г)", "Габибуллаев", 0, 0)
-                insertDoc("Лист назначений", "", 0, 0)
-                insertDoc("Запись осмотра лечащим врачом", "", 0, 0)
-                insertDoc("Лечебная пункция", "", 0, 0)
-                insertDoc("Переведён", "", 0, 0)
-                insertDoc("Жалобы на насморк", "", 0xFFE5484D.toInt(), 0)
-                insertDoc("Обход начальника ЛОР отделения", "", 0xFFFF9800.toInt(), 0)
-                insertDoc("Восстановление", "", 0xFF7DCFFF.toInt(), 0)
-                insertDoc("Самочувствие хорошее", "", 0xFF9ECE6A.toInt(), 0)
 
                 seedClinicalData(db)
                 db.setTransactionSuccessful()
