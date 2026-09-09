@@ -17,6 +17,7 @@ object SettingsKeys {
     val DATE_FORMAT = stringPreferencesKey("date_format")
     val TUTORIAL_SEEN = booleanPreferencesKey("tutorial_seen")
     val CURRENT_FOLDER_ID = longPreferencesKey("current_folder_id")
+    val PENDING_UPDATE_VERSION = stringPreferencesKey("pending_update_version")
 }
 
 data class ThemeSettings(
@@ -70,5 +71,16 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setCurrentFolderId(id: Long) {
         context.dataStore.edit { prefs -> prefs[SettingsKeys.CURRENT_FOLDER_ID] = id }
+    }
+
+    fun pendingUpdateVersionFlow(): Flow<String?> =
+        context.dataStore.data.map { prefs -> prefs[SettingsKeys.PENDING_UPDATE_VERSION] }
+
+    suspend fun setPendingUpdateVersion(version: String) {
+        context.dataStore.edit { prefs -> prefs[SettingsKeys.PENDING_UPDATE_VERSION] = version }
+    }
+
+    suspend fun clearPendingUpdateVersion() {
+        context.dataStore.edit { prefs -> prefs.remove(SettingsKeys.PENDING_UPDATE_VERSION) }
     }
 }

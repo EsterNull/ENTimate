@@ -31,6 +31,7 @@ import com.example.entimate.data.update.AppUpdater
 import com.example.entimate.data.update.UpdateChecker
 import com.example.entimate.data.update.UpdateInfo
 import com.example.entimate.viewmodel.SettingsViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -45,6 +46,7 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
     var status by remember { mutableStateOf("") }
     val settings by vm.settings.collectAsStateWithLifecycle()
     var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
+    var pendingUpdate by remember { mutableStateOf<String?>(null) }
 
     val installPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -64,6 +66,8 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
                 updateState = UpdateUiState.Downloading(if (total > 0) done.toFloat() / total else -1f)
             }
             updateState = UpdateUiState.Ready(file)
+            app.settingsDataStore.setPendingUpdateVersion(info.version)
+            pendingUpdate = info.version
         } catch (e: Exception) {
             updateState = UpdateUiState.Idle
             snackbar.showSnackbar("Ошибка загрузки обновления: ${e.message ?: "неизвестная ошибка"}")
@@ -178,6 +182,16 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
                     }
                 } catch (e: Exception) { "" }
             }
+            LaunchedEffect(Unit) {
+                val pending = app.settingsDataStore.pendingUpdateVersionFlow().first()
+                val fileExists = AppUpdater.downloadedFile(context).exists()
+                if (pending != null && (!fileExists || !UpdateChecker.isNewer(pending, versionName.orEmpty()))) {
+                    app.settingsDataStore.clearPendingUpdateVersion()
+                    pendingUpdate = null
+                } else {
+                    pendingUpdate = pending
+                }
+            }
             Text("О приложении", style = MaterialTheme.typography.titleMedium)
             Text(
                 "ENTimate — приложение для учёта количества документов: карточки документов, пациенты, связи между ними и отчёты. Все данные хранятся локально на устройстве. Интернет используется только для проверки обновлений.",
@@ -196,27 +210,42 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
             }
             Spacer(Modifier.height(4.dp))
             Text("Версия: ${versionName ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val canContinueUpdate = pendingUpdate != null &&
+                AppUpdater.downloadedFile(context).exists() &&
+                UpdateChecker.isNewer(pendingUpdate!!, versionName.orEmpty())
             Button(
                 onClick = {
-                    updateState = UpdateUiState.Checking
-                    scope.launch {
-                        updateState = try {
-                            val info = UpdateChecker.check()
-                            if (UpdateChecker.isNewer(info.version, versionName.orEmpty())) {
-                                UpdateUiState.Found(info)
-                            } else {
-                                snackbar.showSnackbar("Установлена актуальная версия")
+                    if (canContinueUpdate) {
+                        updateState = UpdateUiState.Ready(AppUpdater.downloadedFile(context))
+                    } else {
+                        updateState = UpdateUiState.Checking
+                        scope.launch {
+                            updateState = try {
+                                val info = UpdateChecker.check()
+                                if (UpdateChecker.isNewer(info.version, versionName.orEmpty())) {
+                                    UpdateUiState.Found(info)
+                                } else {
+                                    snackbar.showSnackbar("Установлена актуальная версия")
+                                    UpdateUiState.Idle
+                                }
+                            } catch (e: Exception) {
+                                snackbar.showSnackbar("Не удалось проверить обновления: ${e.message ?: "проверьте подключение к интернету"}")
                                 UpdateUiState.Idle
                             }
-                        } catch (e: Exception) {
-                            snackbar.showSnackbar("Не удалось проверить обновления: ${e.message ?: "проверьте подключение к интернету"}")
-                            UpdateUiState.Idle
                         }
                     }
                 },
                 enabled = updateState !is UpdateUiState.Checking && updateState !is UpdateUiState.Downloading,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (updateState is UpdateUiState.Checking) "Проверка..." else "Проверить обновления") }
+            ) {
+                Text(
+                    when {
+                        updateState is UpdateUiState.Checking -> "Проверка..."
+                        canContinueUpdate -> "Продолжить установку обновления"
+                        else -> "Проверить обновления"
+                    }
+                )
+            }
         }
     }
 

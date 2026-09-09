@@ -31,9 +31,13 @@ class DocumentRepository(
     suspend fun getById(id: Long) = dao.getById(id)?.migrate()
     suspend fun insert(doc: DocumentEntity): Long {
         val id = dao.insert(doc.copy(folderId = folderRepo.currentFolderId()))
+        folderRepo.refresh()
         return id
     }
-    suspend fun update(doc: DocumentEntity) { dao.update(doc) }
+    suspend fun update(doc: DocumentEntity) {
+        dao.update(doc)
+        folderRepo.refresh()
+    }
     suspend fun reorder(from: Int, to: Int) {
         val ids = dao.getForFolder(folderRepo.currentFolderId())
             .sortedWith(compareBy<DocumentEntity> { it.sortOrder }.thenBy { it.name })
@@ -53,9 +57,13 @@ class DocumentRepository(
             val doc = allDocumentsFlow.value.firstOrNull { it.id == docId } ?: dao.getById(docId) ?: return
             val newQty = doc.quantity + sign * doc.step
             dao.updateQuantity(docId, newQty)
+            folderRepo.refresh()
         }
     }
-    suspend fun delete(doc: DocumentEntity) { dao.delete(doc) }
+    suspend fun delete(doc: DocumentEntity) {
+        dao.delete(doc)
+        folderRepo.refresh()
+    }
     suspend fun getAll() = dao.getAll(folderRepo.currentFolderId()).map { it.migrate() }
     suspend fun deleteAll() { dao.deleteAll() }
     suspend fun deleteAllChanges() { dao.deleteAllChanges() }

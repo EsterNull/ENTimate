@@ -71,16 +71,19 @@ class PatientRepository(
             }
         }
         syncEffects(id, recordStats = true)
+        folderRepo.refresh()
         id
     }
 
     suspend fun deletePatient(patient: PatientEntity) = db.withTransaction {
         revertEffects(patient.id, recordStats = true)
         patientDao.deletePatient(patient)
+        folderRepo.refresh()
     }
 
     suspend fun dischargePatient(patient: PatientEntity) = db.withTransaction {
         patientDao.updatePatient(patient.copy(discharged = 1, dischargeDate = todayIso()))
+        folderRepo.refresh()
     }
 
     suspend fun reregisterPatient(old: PatientEntity, admissionDate: String, newNumber: Int? = null): Long = db.withTransaction {
@@ -100,6 +103,7 @@ class PatientRepository(
         )
         val id = patientDao.insertPatient(fresh)
         syncEffects(id, recordStats = true)
+        folderRepo.refresh()
         id
     }
 

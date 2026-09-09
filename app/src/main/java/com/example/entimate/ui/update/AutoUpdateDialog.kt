@@ -25,10 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.entimate.EntimateApplication
 import com.example.entimate.data.update.AppUpdater
 import com.example.entimate.data.update.UpdateChecker
 import com.example.entimate.data.update.UpdateInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -44,6 +46,7 @@ private sealed interface AutoUpdateState {
 @Composable
 fun AutoUpdateDialog() {
     val context = LocalContext.current
+    val app = context.applicationContext as EntimateApplication
     var state by remember { mutableStateOf<AutoUpdateState>(AutoUpdateState.Checking) }
     val scope = rememberCoroutineScope()
 
@@ -58,15 +61,26 @@ fun AutoUpdateDialog() {
     }
 
     LaunchedEffect(Unit) {
-        state = try {
-            val info = withContext(Dispatchers.IO) { UpdateChecker.check() }
-            if (UpdateChecker.isNewer(info.version, currentVersionName(context))) {
-                AutoUpdateState.Found(info)
-            } else {
+        val pending = app.settingsDataStore.pendingUpdateVersionFlow().first()
+        val file = AppUpdater.downloadedFile(context)
+        val versionName = currentVersionName(context)
+        val resume = pending != null && file.exists() && UpdateChecker.isNewer(pending, versionName)
+        state = if (resume) {
+            AutoUpdateState.Ready(file)
+        } else {
+            if (pending != null) {
+                app.settingsDataStore.clearPendingUpdateVersion()
+            }
+            try {
+                val info = withContext(Dispatchers.IO) { UpdateChecker.check() }
+                if (UpdateChecker.isNewer(info.version, versionName)) {
+                    AutoUpdateState.Found(info)
+                } else {
+                    AutoUpdateState.Idle
+                }
+            } catch (_: Exception) {
                 AutoUpdateState.Idle
             }
-        } catch (_: Exception) {
-            AutoUpdateState.Idle
         }
     }
 
@@ -84,6 +98,7 @@ fun AutoUpdateDialog() {
                                 state = AutoUpdateState.Downloading(if (total > 0) done.toFloat() / total else -1f)
                             }
                             state = AutoUpdateState.Ready(file)
+                            app.settingsDataStore.setPendingUpdateVersion(st.info.version)
                         } catch (_: Exception) {
                             state = AutoUpdateState.Idle
                         }

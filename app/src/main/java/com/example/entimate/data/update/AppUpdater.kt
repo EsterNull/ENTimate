@@ -13,6 +13,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object AppUpdater {
+    fun downloadedFile(context: Context): File = File(context.cacheDir, "entimate-update.apk")
+
     suspend fun download(context: Context, url: String, onProgress: (Long, Long) -> Unit): File =
         withContext(Dispatchers.IO) {
             val conn = URL(url).openConnection() as HttpURLConnection
@@ -23,7 +25,7 @@ object AppUpdater {
                 val code = conn.responseCode
                 if (code !in 200..299) throw RuntimeException("HTTP $code")
                 val total = conn.contentLength.toLong()
-                val file = File(context.cacheDir, "entimate-update.apk")
+                val file = downloadedFile(context)
                 conn.inputStream.use { input ->
                     file.outputStream().use { output ->
                         val buffer = ByteArray(8192)
