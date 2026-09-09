@@ -682,6 +682,11 @@ class BackupRepository(
                 dateFormat = settingsObj.optString("dateFormat", "dd.MM.yyyy"),
             )
         }
+        val importedFolders = db.folderDao().getAll()
+        val storedId = settings.currentFolderIdFlow().first()
+        val targetFolder = importedFolders.firstOrNull { it.id == storedId } ?: importedFolders.firstOrNull()
+        if (targetFolder != null) settings.setCurrentFolderId(targetFolder.id)
+        folderRepo.refresh()
         try {
             PatientRepository(db, folderRepo).syncEffectRecords()
         } catch (e: Exception) {

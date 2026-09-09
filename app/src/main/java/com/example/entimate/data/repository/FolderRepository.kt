@@ -12,6 +12,9 @@ import kotlinx.coroutines.launch
 
 data class FolderSummary(val docs: Int = 0, val patients: Int = 0)
 
+/** Single atomic snapshot of what the folder pill should display. */
+data class FolderBarState(val name: String = "Папки", val docs: Int = 0, val patients: Int = 0)
+
 /**
  * Restarts a shared flow after a transient upstream error so an Eagerly-shared
  * StateFlow cannot get stuck forever on its initial empty value.
@@ -29,10 +32,23 @@ class FolderRepository(
     private val reportDao = db.reportDao()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * Bumping this counter re-subscribes every shared DB flow from scratch so a
+     * stale collection (e.g. after importing a backup in the same session) is
+     * discarded instead of surviving until the next process start.
+     */
+    private val refreshTrigger = MutableStateFlow(0)
+
+    fun refresh() {
+        refreshTrigger.value++
+    }
+
     val foldersFlow: StateFlow<List<FolderEntity>> =
-        folderDao.observeAll()
-            .restartOnError()
-            .map { list -> list.map { it.migrate() } }
+        refreshTrigger.flatMapLatest {
+            folderDao.observeAll()
+                .restartOnError()
+                .map { list -> list.map { it.migrate() } }
+        }
             .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     /**
@@ -47,18 +63,37 @@ class FolderRepository(
             .stateIn(scope, SharingStarted.Eagerly, 1L)
 
     val summariesFlow: StateFlow<Map<Long, FolderSummary>> =
-        combine(
-            folderDao.observeFolderDocTotals(),
-            folderDao.observeFolderPatientCounts(),
-        ) { totals, counts ->
-            val docs = totals.associate { it.folderId to it.total }
-            val patients = counts.associate { it.folderId to it.count }
-            (docs.keys + patients.keys).associateWith {
-                FolderSummary(docs[it] ?: 0, patients[it] ?: 0)
+        refreshTrigger.flatMapLatest {
+            combine(
+                folderDao.observeFolderDocTotals(),
+                folderDao.observeFolderPatientCounts(),
+            ) { totals, counts ->
+                val docs = totals.associate { it.folderId to it.total }
+                val patients = counts.associate { it.folderId to it.count }
+                (docs.keys + patients.keys).associateWith {
+                    FolderSummary(docs[it] ?: 0, patients[it] ?: 0)
+                }
             }
+                .restartOnError()
+        }
+            .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+
+    /**
+     * A single combined snapshot for the folder pill. Resolving the name, counts
+     * and the selected id from one flow prevents the pill from showing stale
+     * defaults when the underlying DB flows are mid-transaction during an import.
+     */
+    val barStateFlow: StateFlow<FolderBarState> =
+        combine(foldersFlow, currentFolderIdFlow, summariesFlow) { folders, currentId, summaries ->
+            val current = folders.firstOrNull { it.id == currentId } ?: folders.firstOrNull()
+            FolderBarState(
+                name = current?.name?.takeIf { it.isNotBlank() } ?: "Папки",
+                docs = current?.let { summaries[it.id]?.docs ?: 0 } ?: 0,
+                patients = current?.let { summaries[it.id]?.patients ?: 0 } ?: 0,
+            )
         }
             .restartOnError()
-            .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+            .stateIn(scope, SharingStarted.Eagerly, FolderBarState())
 
     suspend fun currentFolderId(): Long = currentFolderIdFlow.first()
 

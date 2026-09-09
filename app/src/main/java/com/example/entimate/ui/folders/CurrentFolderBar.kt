@@ -22,7 +22,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.entimate.EntimateApplication
-import com.example.entimate.data.repository.FolderSummary
 import com.example.entimate.ui.components.tutorialAnchor
 
 /** Height the list below the bar must scroll out of the way for. */
@@ -41,12 +40,7 @@ fun CurrentFolderBar(
 ) {
     val app = LocalContext.current.applicationContext as EntimateApplication
     val repo = app.folderRepository
-    val folders by repo.foldersFlow.collectAsStateWithLifecycle(emptyList())
-    val currentId by repo.currentFolderIdFlow.collectAsStateWithLifecycle(0L)
-    val summaries by repo.summariesFlow.collectAsStateWithLifecycle(emptyMap())
-    val current = folders.firstOrNull { it.id == currentId } ?: folders.firstOrNull()
-    val name = current?.name?.takeIf { it.isNotBlank() } ?: "Папки"
-    val summary = if (current != null) summaries[current.id] ?: FolderSummary() else FolderSummary()
+    val state by repo.barStateFlow.collectAsStateWithLifecycle()
     val config = LocalConfiguration.current
     val sidePadding = (config.screenWidthDp * 0.07f).dp
 
@@ -73,14 +67,14 @@ fun CurrentFolderBar(
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    name,
+                    state.name,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    "Д${summary.docs} П${summary.patients}",
+                    "Д${state.docs} П${state.patients}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
