@@ -33,15 +33,11 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
     val repo = app.patientRepository
     val documents by vm.documents.collectAsStateWithLifecycle()
     val customFields by vm.customFields.collectAsStateWithLifecycle()
-    var allLinks by remember { mutableStateOf(listOf<PatientFieldLinkEntity>()) }
+    val allLinks by vm.links.collectAsStateWithLifecycle()
     var showDialogFor by remember { mutableStateOf<PatientFieldDef?>(null) }
     var showDialogCustom by remember { mutableStateOf<PatientCustomFieldEntity?>(null) }
     var showGlobalDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        allLinks = repo.getAllLinks()
-    }
 
     fun linksFor(key: String) = allLinks.filter { it.sourceKey == key }
     val globalLinks = allLinks.filter { it.sourceKey == PATIENT_GLOBAL_KEY }
@@ -72,7 +68,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
                     links = linksFor(key),
                     documentName = { docNameById[it] ?: "#$it" },
                     onAdd = { showDialogFor = def },
-                    onDelete = { link -> allLinks = allLinks - link; scope.launch { repo.deleteLink(link) } },
+                    onDelete = { link -> scope.launch { repo.deleteLink(link) } },
                 )
                 Spacer(Modifier.height(10.dp))
             }
@@ -83,7 +79,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
                     links = linksFor(key),
                     documentName = { docNameById[it] ?: "#$it" },
                     onAdd = { showDialogCustom = cf },
-                    onDelete = { link -> allLinks = allLinks - link; scope.launch { repo.deleteLink(link) } },
+                    onDelete = { link -> scope.launch { repo.deleteLink(link) } },
                 )
                 Spacer(Modifier.height(10.dp))
             }
@@ -103,7 +99,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
                 links = globalLinks,
                 documentName = { docNameById[it] ?: "#$it" },
                 onAdd = { showGlobalDialog = true },
-                onDelete = { link -> allLinks = allLinks - link; scope.launch { repo.deleteLink(link) } },
+                onDelete = { link -> scope.launch { repo.deleteLink(link) } },
             )
         }
     }
@@ -117,7 +113,6 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
             onDismiss = { showDialogFor = null },
             onConfirm = { docId, operation, amount, cond ->
                 val link = PatientFieldLinkEntity(sourceKey = def.key, conditionValue = cond, documentId = docId, operation = operation, amount = amount)
-                allLinks = allLinks + link
                 showDialogFor = null
                 scope.launch { repo.saveLink(link) }
             },
@@ -134,7 +129,6 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
             onDismiss = { showDialogCustom = null },
             onConfirm = { docId, operation, amount, cond ->
                 val link = PatientFieldLinkEntity(sourceKey = "custom:${cf.id}", conditionValue = cond, documentId = docId, operation = operation, amount = amount)
-                allLinks = allLinks + link
                 showDialogCustom = null
                 scope.launch { repo.saveLink(link) }
             },
@@ -150,7 +144,6 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
             onDismiss = { showGlobalDialog = false },
             onConfirm = { docId, operation, amount, _ ->
                 val link = PatientFieldLinkEntity(sourceKey = PATIENT_GLOBAL_KEY, conditionValue = "", documentId = docId, operation = operation, amount = amount)
-                allLinks = allLinks + link
                 showGlobalDialog = false
                 scope.launch { repo.saveLink(link) }
             },

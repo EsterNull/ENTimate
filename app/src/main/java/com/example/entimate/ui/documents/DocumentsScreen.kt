@@ -29,6 +29,8 @@ import com.example.entimate.ui.components.LocalTutorial
 import com.example.entimate.ui.components.DocumentCard
 import com.example.entimate.ui.components.SwipeableRow
 import com.example.entimate.ui.components.tutorialAnchor
+import com.example.entimate.ui.folders.CurrentFolderBar
+import com.example.entimate.ui.folders.FolderBarHeight
 import com.example.entimate.viewmodel.DocumentsViewModel
 import kotlinx.coroutines.launch
 
@@ -115,95 +117,101 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
             )
         },
     ) { padding ->
-        if (docs.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "Нет документов.\nНажмите + вверху, чтобы создать.",
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                state = listState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                itemsIndexed(docs, key = { _, doc -> doc.id }) { index, doc ->
-                    if (reordering) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column {
-                                IconButton(
-                                    onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
-                                    enabled = index > 0,
-                                ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
-                                IconButton(
-                                    onClick = { if (index < docs.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
-                                    enabled = index < docs.lastIndex,
-                                ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            if (docs.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Нет документов.\nНажмите + вверху, чтобы создать.",
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = FolderBarHeight + 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    itemsIndexed(docs, key = { _, doc -> doc.id }) { index, doc ->
+                        if (reordering) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateItem(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column {
+                                    IconButton(
+                                        onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
+                                        enabled = index > 0,
+                                    ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
+                                    IconButton(
+                                        onClick = { if (index < docs.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
+                                        enabled = index < docs.lastIndex,
+                                    ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    DocumentCard(
+                                        doc = doc,
+                                        onClick = {},
+                                        onLongClick = {},
+                                        onAdjust = {},
+                                        onCommit = {},
+                                    )
+                                }
                             }
-                            Box(Modifier.weight(1f)) {
+                        } else {
+                            SwipeableRow(
+                                onSwipeLeft = { pendingDelete = doc },
+                                onSwipeRight = { nav.navigate("documents/edit/${doc.id}") },
+                                backgroundLeft = {
+                                    Box(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .clip(MaterialTheme.shapes.medium)
+                                            .background(MaterialTheme.colorScheme.errorContainer)
+                                            .padding(horizontal = 24.dp),
+                                        contentAlignment = Alignment.CenterEnd,
+                                    ) {
+                                        Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                    }
+                                },
+                                backgroundRight = {
+                                    Box(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .clip(MaterialTheme.shapes.medium)
+                                            .background(MaterialTheme.colorScheme.primaryContainer)
+                                            .padding(horizontal = 24.dp),
+                                        contentAlignment = Alignment.CenterStart,
+                                    ) {
+                                        Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
+                            ) {
                                 DocumentCard(
                                     doc = doc,
-                                    onClick = {},
-                                    onLongClick = {},
-                                    onAdjust = {},
-                                    onCommit = {},
+                                    onClick = { nav.navigate("documents/stats/${doc.id}") },
+                                    onLongClick = { pendingDup = doc },
+                                    onAdjust = { vm.adjust(doc.id, it) },
+                                    onCommit = { vm.recordChange(doc.id, it) },
                                 )
                             }
-                        }
-                    } else {
-                        SwipeableRow(
-                            onSwipeLeft = { pendingDelete = doc },
-                            onSwipeRight = { nav.navigate("documents/edit/${doc.id}") },
-                            backgroundLeft = {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .clip(MaterialTheme.shapes.medium)
-                                        .background(MaterialTheme.colorScheme.errorContainer)
-                                        .padding(horizontal = 24.dp),
-                                    contentAlignment = Alignment.CenterEnd,
-                                ) {
-                                    Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                }
-                            },
-                            backgroundRight = {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .clip(MaterialTheme.shapes.medium)
-                                        .background(MaterialTheme.colorScheme.primaryContainer)
-                                        .padding(horizontal = 24.dp),
-                                    contentAlignment = Alignment.CenterStart,
-                                ) {
-                                    Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                }
-                            },
-                        ) {
-                            DocumentCard(
-                                doc = doc,
-                                onClick = { nav.navigate("documents/stats/${doc.id}") },
-                                onLongClick = { pendingDup = doc },
-                                onAdjust = { vm.adjust(doc.id, it) },
-                                onCommit = { vm.recordChange(doc.id, it) },
-                            )
                         }
                     }
                 }
             }
+            CurrentFolderBar(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                onOpenFolders = { nav.navigate("folders") },
+            )
         }
     }
 }

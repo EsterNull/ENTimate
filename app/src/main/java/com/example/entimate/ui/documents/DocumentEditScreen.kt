@@ -51,6 +51,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
     var loaded by remember { mutableStateOf(docId == 0L) }
     var originalQuantity by remember { mutableStateOf(0) }
     var originalSortOrder by remember { mutableIntStateOf(0) }
+    var originalFolderId by remember { mutableLongStateOf(0L) }
     var originalVersion by remember { mutableIntStateOf(CURRENT_DATA_VERSION) }
     var originalExtras by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -66,6 +67,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 originalQuantity = it.quantity
                 step = it.step.toString()
                 originalSortOrder = it.sortOrder
+                originalFolderId = it.folderId
                 originalVersion = it.version
                 originalExtras = it.extras
             }
@@ -97,6 +99,7 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                                     quantity = quantity.toIntOrNull() ?: 0,
                                     step = step.toIntOrNull() ?: 1,
                                     sortOrder = originalSortOrder,
+                                    folderId = originalFolderId,
                                     version = originalVersion,
                                     extras = originalExtras,
                                 )

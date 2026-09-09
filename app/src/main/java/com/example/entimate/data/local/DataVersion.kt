@@ -81,6 +81,23 @@ fun <T> T.migrateVersioned(
 
 // ---- Field mappers per data unit ----
 
+fun FolderEntity.migrate(): FolderEntity = migrateVersioned(
+    toFields = { f ->
+        mutableMapOf(
+            "name" to f.name,
+            "description" to f.description,
+            "colorArgb" to f.colorArgb.toString(),
+        )
+    },
+    fromFields = { f, m ->
+        f.copy(
+            name = m["name"] ?: "",
+            description = m["description"] ?: "",
+            colorArgb = m["colorArgb"]?.toIntOrNull() ?: 0,
+        )
+    },
+)
+
 fun DocumentEntity.migrate(): DocumentEntity = migrateVersioned(
     toFields = { d ->
         mutableMapOf(

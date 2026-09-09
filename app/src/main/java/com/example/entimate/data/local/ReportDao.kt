@@ -10,6 +10,10 @@ interface ReportDao {
     fun observeAll(): Flow<List<ReportWithColumns>>
 
     @Transaction
+    @Query("SELECT * FROM reports WHERE folderId = :folderId ORDER BY sortOrder ASC, name ASC")
+    fun observeAll(folderId: Long): Flow<List<ReportWithColumns>>
+
+    @Transaction
     @Query("SELECT * FROM reports WHERE id = :id")
     suspend fun getWithColumns(id: Long): ReportWithColumns?
 
@@ -23,8 +27,17 @@ interface ReportDao {
     @Query("SELECT * FROM reports")
     suspend fun getAll(): List<ReportEntity>
 
+    @Query("SELECT * FROM reports WHERE folderId = :folderId")
+    suspend fun getAll(folderId: Long): List<ReportEntity>
+
+    @Query("SELECT * FROM reports WHERE folderId = :folderId")
+    suspend fun getForFolder(folderId: Long): List<ReportEntity>
+
     @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM reports")
     suspend fun getMaxSortOrder(): Int
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM reports WHERE folderId = :folderId")
+    suspend fun getMaxSortOrder(folderId: Long): Int
 
     @Query("UPDATE reports SET sortOrder = :order WHERE id = :id")
     suspend fun setSortOrder(id: Long, order: Int)
@@ -55,6 +68,9 @@ interface ReportDao {
 
     @Query("DELETE FROM reports")
     suspend fun deleteAll()
+
+    @Query("DELETE FROM reports WHERE folderId = :folderId")
+    suspend fun deleteForFolder(folderId: Long)
 
     @Query("SELECT * FROM report_columns")
     suspend fun getAllColumns(): List<ReportColumnEntity>
@@ -107,6 +123,9 @@ interface ReportDao {
 
     @Query("SELECT * FROM reports WHERE kind != 'DOCUMENT' ORDER BY sortOrder ASC, name ASC")
     suspend fun getTableReports(): List<ReportEntity>
+
+    @Query("SELECT * FROM reports WHERE kind != 'DOCUMENT' AND folderId = :folderId ORDER BY sortOrder ASC, name ASC")
+    suspend fun getTableReports(folderId: Long): List<ReportEntity>
 
     @Query("SELECT * FROM report_columns WHERE reportId = :reportId ORDER BY position ASC")
     suspend fun getColumnsForReport(reportId: Long): List<ReportColumnEntity>

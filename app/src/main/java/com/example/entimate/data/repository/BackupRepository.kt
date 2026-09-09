@@ -8,10 +8,15 @@ import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
 
-class BackupRepository(private val db: AppDatabase, private val settings: SettingsDataStore) {
+class BackupRepository(
+    private val db: AppDatabase,
+    private val settings: SettingsDataStore,
+    private val folderRepo: FolderRepository,
+) {
 
     suspend fun exportJson(): String = db.withTransaction {
         val s = settings.settingsFlow.first()
+        val folders = db.folderDao().getAll()
         val docs = db.documentDao().getAll()
         val forms = db.formDao().getAll()
         val fields = db.formDao().getAllFields()
@@ -28,7 +33,16 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
         val effects = db.patientDao().getAllEffects()
 
         val root = JSONObject()
-        root.put("version", 3)
+        root.put("version", 4)
+        root.put("folders", JSONArray(folders.map {
+            JSONObject().apply {
+                put("id", it.id)
+                put("name", it.name)
+                put("description", it.description)
+                put("colorArgb", it.colorArgb)
+                put("sortOrder", it.sortOrder)
+            }
+        }))
         root.put("documents", JSONArray(docs.map {
             JSONObject().apply {
                 put("id", it.id)
@@ -37,6 +51,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("colorArgb", it.colorArgb)
                 put("quantity", it.quantity)
                 put("step", it.step)
+                put("folderId", it.folderId)
             }
         }))
         root.put("forms", JSONArray(forms.map {
@@ -99,6 +114,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("marginRightMm", it.marginRightMm)
                 put("marginBottomMm", it.marginBottomMm)
                 put("marginLeftMm", it.marginLeftMm)
+                put("folderId", it.folderId)
             }
         }))
         root.put("reportColumns", JSONArray(columns.map {
@@ -115,6 +131,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("align", it.align)
                 put("dropdownMap", it.dropdownMap)
                 put("hideValues", it.hideValues)
+                put("agg", it.agg)
             }
         }))
         root.put("reportFilters", JSONArray(filters.map {
@@ -201,6 +218,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("dischargeDate", it.dischargeDate)
                 put("colorArgb", it.colorArgb)
                 put("createdAt", it.createdAt)
+                put("folderId", it.folderId)
             }
         }))
         root.put("patientCustomFields", JSONArray(customFields.map {
@@ -211,6 +229,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("options", it.options)
                 put("defaultValue", it.defaultValue)
                 put("position", it.position)
+                put("folderId", it.folderId)
             }
         }))
         root.put("patientCustomValues", JSONArray(customValues.map {
@@ -229,6 +248,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                 put("documentId", it.documentId)
                 put("operation", it.operation)
                 put("amount", it.amount)
+                put("folderId", it.folderId)
             }
         }))
         root.put("documentChanges", JSONArray(changes.map {
@@ -275,6 +295,28 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
         if (hasElements) db.reportDao().deleteAllElements()
         db.patientDao().clearEffects()
         db.documentDao().deleteAllChanges()
+        db.folderDao().deleteAll()
+
+        val folderArray = root.optJSONArray("folders")
+        if (folderArray != null) {
+            for (i in 0 until folderArray.length()) {
+                val o = folderArray.getJSONObject(i)
+                db.folderDao().insert(
+                    FolderEntity(
+                        id = o.optLong("id", 0),
+                        name = o.optString("name", "По умолчанию"),
+                        description = o.optString("description", ""),
+                        colorArgb = o.optInt("colorArgb", 0),
+                        sortOrder = o.optInt("sortOrder", 0),
+                    )
+                )
+            }
+        }
+        if (db.folderDao().getCount() == 0) {
+            db.folderDao().insert(
+                FolderEntity(id = 1, name = "По умолчанию", description = "", colorArgb = 0, sortOrder = 0)
+            )
+        }
 
         val docs = root.optJSONArray("documents")
         if (docs != null) {
@@ -287,7 +329,8 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         description = o.optString("description", ""),
                         colorArgb = o.optInt("colorArgb", 0xFF6750A4.toInt()),
                         quantity = o.optInt("quantity", 0),
-                        step = o.optInt("step", 1)
+                        step = o.optInt("step", 1),
+                        folderId = o.optLong("folderId", 1),
                     )
                 )
             }
@@ -387,6 +430,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         marginRightMm = o.optDouble("marginRightMm", 25.4).toFloat(),
                         marginBottomMm = o.optDouble("marginBottomMm", 25.4).toFloat(),
                         marginLeftMm = o.optDouble("marginLeftMm", 25.4).toFloat(),
+                        folderId = o.optLong("folderId", 1),
                     )
                 )
             }
@@ -459,6 +503,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         align = o.optString("align", "LEFT"),
                         dropdownMap = o.optString("dropdownMap", ""),
                         hideValues = o.optInt("hideValues", 0),
+                        agg = o.optString("agg", ""),
                     )
                 )
             }
@@ -512,7 +557,8 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         discharged = o.optInt("discharged", 0),
                         dischargeDate = o.optString("dischargeDate", ""),
                         colorArgb = o.optInt("colorArgb", 0),
-                        createdAt = o.optLong("createdAt", 0L)
+                        createdAt = o.optLong("createdAt", 0L),
+                        folderId = o.optLong("folderId", 1),
                     )
                 )
             }
@@ -528,7 +574,8 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         type = o.optString("type", "TEXT"),
                         options = o.optString("options", ""),
                         defaultValue = o.optString("defaultValue", ""),
-                        position = o.optInt("position", 0)
+                        position = o.optInt("position", 0),
+                        folderId = o.optLong("folderId", 1),
                     )
                 )
             }
@@ -558,7 +605,8 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
                         conditionValue = o.optString("conditionValue", ""),
                         documentId = o.optLong("documentId", 0),
                         operation = o.optString("operation", "DECREASE"),
-                        amount = o.optInt("amount", 0)
+                        amount = o.optInt("amount", 0),
+                        folderId = o.optLong("folderId", 1),
                     )
                 )
             }
@@ -605,7 +653,7 @@ class BackupRepository(private val db: AppDatabase, private val settings: Settin
             )
         }
         try {
-            PatientRepository(db).syncEffectRecords()
+            PatientRepository(db, folderRepo).syncEffectRecords()
         } catch (e: Exception) {
             Log.e("ENT", "syncEffectRecords skipped during import: ${e.message}")
         }

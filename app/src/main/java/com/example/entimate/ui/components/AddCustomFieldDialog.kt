@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.entimate.data.local.DocumentEntity
 import com.example.entimate.data.local.PatientCustomFieldEntity
 import com.example.entimate.ui.stripNewlines
 
@@ -18,6 +19,7 @@ import com.example.entimate.ui.stripNewlines
 @Composable
 fun AddCustomFieldDialog(
     initial: PatientCustomFieldEntity? = null,
+    documents: List<DocumentEntity> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (label: String, type: String, options: String, default: String) -> Unit,
 ) {
@@ -28,11 +30,12 @@ fun AddCustomFieldDialog(
     var typeExpanded by remember { mutableStateOf(false) }
     var defaultExpanded by remember { mutableStateOf(false) }
     var newOption by remember { mutableStateOf("") }
-    val types = listOf("TEXT" to "Текст", "NUMBER" to "Число", "DATE" to "Дата", "DROPDOWN" to "Список", "CHECKBOX" to "Чекбокс")
+    val types = listOf("TEXT" to "Текст", "NUMBER" to "Число", "DATE" to "Дата", "DROPDOWN" to "Список", "CHECKBOX" to "Чекбокс", "DOCUMENT" to "Документ")
 
     val optionList = remember(options) {
         options.split(",").map { it.trim() }.filter { it.isNotBlank() }
     }
+    val docNames = remember(documents) { documents.map { it.name } }
 
     fun applyOptions(list: List<String>) {
         options = list.joinToString(",")
@@ -101,6 +104,27 @@ fun AddCustomFieldDialog(
                         ExposedDropdownMenu(expanded = defaultExpanded, onDismissRequest = { defaultExpanded = false }) {
                             optionList.forEach { o ->
                                 DropdownMenuItem(text = { Text(o) }, onClick = { default = o; defaultExpanded = false })
+                            }
+                        }
+                    }
+                } else if (type == "DOCUMENT") {
+                    ExposedDropdownMenuBox(expanded = defaultExpanded, onExpandedChange = { defaultExpanded = it }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = if (docNames.contains(default)) default else "",
+                            onValueChange = {}, readOnly = true,
+                            label = { Text("Значение по умолчанию") },
+                            placeholder = { Text(if (docNames.isEmpty()) "Документов нет" else "Не задано") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(defaultExpanded) },
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                            enabled = docNames.isNotEmpty(),
+                            leadingIcon = if (default.isNotBlank()) ({
+                                IconButton(onClick = { default = "" }) { Icon(Icons.Filled.Close, contentDescription = "Сбросить", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            }) else null,
+                        )
+                        ExposedDropdownMenu(expanded = defaultExpanded, onDismissRequest = { defaultExpanded = false }) {
+                            if (docNames.isEmpty()) DropdownMenuItem(text = { Text("Документов нет") }, enabled = false, onClick = {})
+                            docNames.forEach { d ->
+                                DropdownMenuItem(text = { Text(d) }, onClick = { default = d; defaultExpanded = false })
                             }
                         }
                     }

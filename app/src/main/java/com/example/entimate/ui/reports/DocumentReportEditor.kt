@@ -150,6 +150,7 @@ fun DocumentReportEditor(reportId: Long, nav: NavController, vm: ReportsViewMode
     var marginBottomMm by remember { mutableStateOf(25.4f) }
     var marginLeftMm by remember { mutableStateOf(25.4f) }
     var nameError by remember { mutableStateOf(false) }
+    var reportFolder by remember { mutableStateOf(0L) }
     val paragraphs = remember { mutableStateListOf<ParagraphDraft>() }
     var loaded by remember { mutableStateOf(reportId == 0L) }
     var tableReports by remember { mutableStateOf(listOf<ReportEntity>()) }
@@ -161,10 +162,13 @@ fun DocumentReportEditor(reportId: Long, nav: NavController, vm: ReportsViewMode
     fun nid(): Long { val v = nextId; nextId -= 1; return v }
 
     LaunchedEffect(Unit) {
-        tableReports = vm.tableReports()
-        if (reportId != 0L) {
+        if (reportId == 0L) {
+            tableReports = vm.tableReports(vm.currentFolderId())
+        } else {
             val d = vm.getReportWithDocument(reportId)
             if (d != null) {
+                tableReports = vm.tableReports(d.report.folderId)
+                reportFolder = d.report.folderId
                 name = d.report.name
                 description = d.report.description
                 color = d.report.colorArgb
@@ -246,6 +250,7 @@ fun DocumentReportEditor(reportId: Long, nav: NavController, vm: ReportsViewMode
             val id = vm.saveDocumentReportSuspended(
                 ReportEntity(
                     id = reportId, name = name.trim(), description = description.trim(), kind = "DOCUMENT", colorArgb = color,
+                    folderId = reportFolder,
                     marginTopMm = marginTopMm, marginRightMm = marginRightMm, marginBottomMm = marginBottomMm, marginLeftMm = marginLeftMm,
                 ),
                 blocks,
@@ -1214,10 +1219,10 @@ private fun ReportDropdown(value: Long, reports: List<ReportEntity>, onValueChan
     var expanded by remember { mutableStateOf(false) }
     val label = reports.firstOrNull { it.id == value }?.name ?: "Выберите отчёт"
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(value = label, onValueChange = {}, readOnly = true, label = { Text("Отчёт (таблица)") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth())
+        OutlinedTextField(value = label, onValueChange = {}, readOnly = true, label = { Text("Отчёт (таблица/сводка)") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth())
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             reports.forEach { r ->
-                DropdownMenuItem(text = { Text(r.name.ifBlank { "Без названия" }) }, onClick = { onValueChange(r.id); expanded = false })
+                DropdownMenuItem(text = { Text(r.name.ifBlank { "Без названия" } + if (r.kind == "SUMMARY") " — сводка" else "") }, onClick = { onValueChange(r.id); expanded = false })
             }
         }
     }

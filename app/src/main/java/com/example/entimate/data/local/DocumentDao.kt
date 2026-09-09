@@ -8,8 +8,17 @@ interface DocumentDao {
     @Query("SELECT * FROM documents ORDER BY sortOrder ASC, name ASC")
     fun observeAll(): Flow<List<DocumentEntity>>
 
+    @Query("SELECT * FROM documents WHERE folderId = :folderId ORDER BY sortOrder ASC, name ASC")
+    fun observeAll(folderId: Long): Flow<List<DocumentEntity>>
+
     @Query("SELECT * FROM documents")
     suspend fun getAll(): List<DocumentEntity>
+
+    @Query("SELECT * FROM documents WHERE folderId = :folderId")
+    suspend fun getAll(folderId: Long): List<DocumentEntity>
+
+    @Query("SELECT * FROM documents WHERE folderId = :folderId")
+    suspend fun getForFolder(folderId: Long): List<DocumentEntity>
 
     @Query("SELECT * FROM documents WHERE id = :id")
     suspend fun getById(id: Long): DocumentEntity?
@@ -38,6 +47,9 @@ interface DocumentDao {
     @Query("DELETE FROM documents")
     suspend fun deleteAll()
 
+    @Query("DELETE FROM documents WHERE folderId = :folderId")
+    suspend fun deleteForFolder(folderId: Long)
+
     @Query("DELETE FROM document_changes")
     suspend fun deleteAllChanges()
 
@@ -46,6 +58,9 @@ interface DocumentDao {
 
     @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM documents")
     suspend fun getMaxOrder(): Int
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM documents WHERE folderId = :folderId")
+    suspend fun getMaxOrder(folderId: Long): Int
 
     @Query("UPDATE documents SET sortOrder = :order WHERE id = :id")
     suspend fun setOrder(id: Long, order: Int)

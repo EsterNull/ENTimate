@@ -34,8 +34,9 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
 
     suspend fun duplicateReport(reportId: Long): Long = repo.duplicateReport(reportId)
 
+    suspend fun currentFolderId(): Long = repo.currentFolderId()
     suspend fun getReportWithDocument(id: Long) = repo.getReportWithDocument(id)
-    suspend fun tableReports(): List<ReportEntity> = repo.tableReports()
+    suspend fun tableReports(folderId: Long): List<ReportEntity> = repo.tableReports(folderId)
     suspend fun reportColumns(reportId: Long): List<ReportColumnEntity> = repo.getColumnsForReport(reportId)
     suspend fun buildDocModel(reportId: Long, dateFormat: String = "dd.MM.yyyy", from: Long = 0L, to: Long = System.currentTimeMillis()) = repo.buildDocModel(reportId, dateFormat, from, to)
 

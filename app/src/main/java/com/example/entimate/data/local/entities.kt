@@ -2,7 +2,21 @@ package com.example.entimate.data.local
 
 import androidx.room.*
 
-@Entity(tableName = "documents")
+@Entity(tableName = "folders")
+data class FolderEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val description: String = "",
+    val colorArgb: Int = 0,
+    val sortOrder: Int = 0,
+    override var version: Int = CURRENT_DATA_VERSION,
+    override var extras: String = "",
+) : Versioned
+
+@Entity(
+    tableName = "documents",
+    indices = [Index(value = ["folderId"])],
+)
 data class DocumentEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -11,11 +25,15 @@ data class DocumentEntity(
     val quantity: Int,
     val step: Int = 1,
     val sortOrder: Int = 0,
+    @ColumnInfo(defaultValue = "1") val folderId: Long = 1,
     override var version: Int = CURRENT_DATA_VERSION,
     override var extras: String = "",
 ) : Versioned
 
-@Entity(tableName = "reports")
+@Entity(
+    tableName = "reports",
+    indices = [Index(value = ["folderId"])],
+)
 data class ReportEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -23,6 +41,7 @@ data class ReportEntity(
     val colorArgb: Int = 0,
     val kind: String = "DOCUMENTS",
     val sortOrder: Int = 0,
+    @ColumnInfo(defaultValue = "1") val folderId: Long = 1,
     val marginTopMm: Float = 25.4f,
     val marginRightMm: Float = 25.4f,
     val marginBottomMm: Float = 25.4f,
@@ -49,6 +68,7 @@ data class ReportColumnEntity(
     val align: String = "LEFT",
     val dropdownMap: String = "",
     val hideValues: Int = 0,
+    val agg: String = "",
 )
 
 @Entity(
@@ -76,7 +96,10 @@ data class DocumentChangeEntity(
     val patientId: Long = 0,
 )
 
-@Entity(tableName = "patients")
+@Entity(
+    tableName = "patients",
+    indices = [Index(value = ["folderId"])],
+)
 data class PatientEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val number: Int,
@@ -106,11 +129,15 @@ data class PatientEntity(
     val colorArgb: Int = 0,
     val createdAt: Long = 0L,
     val sortOrder: Int = 0,
+    @ColumnInfo(defaultValue = "1") val folderId: Long = 1,
     override var version: Int = CURRENT_DATA_VERSION,
     override var extras: String = "",
 ) : Versioned
 
-@Entity(tableName = "patient_custom_fields")
+@Entity(
+    tableName = "patient_custom_fields",
+    indices = [Index(value = ["folderId"])],
+)
 data class PatientCustomFieldEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val label: String,
@@ -118,6 +145,7 @@ data class PatientCustomFieldEntity(
     val options: String = "",
     val defaultValue: String = "",
     val position: Int = 0,
+    @ColumnInfo(defaultValue = "1") val folderId: Long = 1,
     override var version: Int = CURRENT_DATA_VERSION,
     override var extras: String = "",
 ) : Versioned
@@ -137,7 +165,7 @@ data class PatientCustomValueEntity(
 @Entity(
     tableName = "patient_field_links",
     foreignKeys = [ForeignKey(entity = DocumentEntity::class, parentColumns = ["id"], childColumns = ["documentId"], onDelete = ForeignKey.CASCADE)],
-    indices = [Index(value = ["documentId"])],
+    indices = [Index(value = ["documentId"]), Index(value = ["folderId"])],
 )
 data class PatientFieldLinkEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -146,6 +174,7 @@ data class PatientFieldLinkEntity(
     val documentId: Long,
     val operation: String,
     val amount: Int,
+    @ColumnInfo(defaultValue = "1") val folderId: Long = 1,
 )
 
 @Entity(

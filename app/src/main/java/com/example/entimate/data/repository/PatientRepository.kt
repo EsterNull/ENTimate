@@ -3,8 +3,10 @@ package com.example.entimate.data.repository
 import android.util.Log
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -12,26 +14,45 @@ import java.util.Locale
 
 fun todayIso(): String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-class PatientRepository(private val db: AppDatabase) {
+@OptIn(ExperimentalCoroutinesApi::class)
+class PatientRepository(
+    private val db: AppDatabase,
+    private val folderRepo: FolderRepository,
+) {
     private val patientDao = db.patientDao()
     private val documentDao = db.documentDao()
 
     val effectLog = MutableSharedFlow<String>(extraBufferCapacity = 16)
 
     val patientsFlow: Flow<List<PatientWithValues>> =
-        patientDao.observeAll().map { list -> list.map { pw -> pw.copy(patient = pw.patient.migrate()) } }
+        folderRepo.currentFolderIdFlow.flatMapLatest { fid ->
+            patientDao.observeAll(fid).map { list -> list.map { pw -> pw.copy(patient = pw.patient.migrate()) } }
+        }
     val customFieldsFlow: Flow<List<PatientCustomFieldEntity>> =
-        patientDao.observeCustomFields().map { list -> list.map { it.migrate() } }
+        folderRepo.currentFolderIdFlow.flatMapLatest { fid ->
+            patientDao.observeCustomFields(fid).map { list -> list.map { it.migrate() } }
+        }
     val documentsFlow: Flow<List<DocumentEntity>> =
-        documentDao.observeAll().map { list -> list.map { it.migrate() } }
+        folderRepo.currentFolderIdFlow.flatMapLatest { fid ->
+            documentDao.observeAll(fid).map { list -> list.map { it.migrate() } }
+        }
+    val linksFlow: Flow<List<PatientFieldLinkEntity>> =
+        folderRepo.currentFolderIdFlow.flatMapLatest { fid ->
+            patientDao.observeLinksForFolder(fid)
+        }
 
-    suspend fun getAllDocuments() = documentDao.getAll().map { it.migrate() }
-    suspend fun getAllLinks() = patientDao.getAllLinks()
+    suspend fun getAllDocuments() = documentDao.getAll(folderRepo.currentFolderId()).map { it.migrate() }
+    suspend fun getAllLinks() = patientDao.getAllLinksForFolder(folderRepo.currentFolderId())
     suspend fun getLinks(sourceKey: String) = patientDao.getLinks(sourceKey)
     suspend fun getPatient(id: Long) = patientDao.getWithValues(id)?.let { it.copy(patient = it.patient.migrate()) }
 
     suspend fun savePatient(patient: PatientEntity, customValues: Map<Long, String>): Long = db.withTransaction {
-        val toSave = if (patient.id == 0L) patient.copy(sortOrder = patientDao.getMaxSortOrder() + 1) else patient
+        val folder = if (patient.id == 0L) folderRepo.currentFolderId() else patient.folderId
+        val toSave = if (patient.id == 0L) {
+            patient.copy(folderId = folder, sortOrder = patientDao.getMaxSortOrder(folder) + 1)
+        } else {
+            patient
+        }
         val id = if (toSave.id == 0L) {
             patientDao.insertPatient(toSave)
         } else {
@@ -61,6 +82,7 @@ class PatientRepository(private val db: AppDatabase) {
         patientDao.updatePatient(old.copy(discharged = 1, dischargeDate = todayIso()))
         val fresh = old.copy(
             id = 0,
+            folderId = old.folderId,
             number = newNumber ?: old.number,
             admissionDate = admissionDate,
             illnessStart = admissionDate,
@@ -68,7 +90,7 @@ class PatientRepository(private val db: AppDatabase) {
             discharged = 0,
             dischargeDate = "",
             createdAt = System.currentTimeMillis(),
-            sortOrder = patientDao.getMaxSortOrder() + 1,
+            sortOrder = patientDao.getMaxSortOrder(old.folderId) + 1,
             version = CURRENT_DATA_VERSION,
         )
         val id = patientDao.insertPatient(fresh)
@@ -77,7 +99,8 @@ class PatientRepository(private val db: AppDatabase) {
     }
 
     suspend fun saveCustomField(f: PatientCustomFieldEntity): Long {
-        val id = if (f.id != 0L) { patientDao.updateCustomField(f); f.id } else patientDao.insertCustomField(f)
+        val toSave = if (f.id == 0L) f.copy(folderId = folderRepo.currentFolderId()) else f
+        val id = if (toSave.id != 0L) { patientDao.updateCustomField(toSave); toSave.id } else patientDao.insertCustomField(toSave)
         recomputeAllEffects()
         return id
     }
@@ -88,8 +111,13 @@ class PatientRepository(private val db: AppDatabase) {
         recomputeAllEffects()
     }
 
+    suspend fun reorderFields(orderedIds: List<Long>) = db.withTransaction {
+        orderedIds.forEachIndexed { index, id -> patientDao.setFieldPosition(id, index) }
+    }
+
     suspend fun saveLink(link: PatientFieldLinkEntity): Long = db.withTransaction {
-        val id = patientDao.insertLink(link)
+        val toSave = if (link.id == 0L) link.copy(folderId = folderRepo.currentFolderId()) else link
+        val id = patientDao.insertLink(toSave)
         recomputeAllEffects()
         id
     }
@@ -114,8 +142,8 @@ class PatientRepository(private val db: AppDatabase) {
         val all = patientDao.getAllPatientsWithValues()
         for (p in all) {
             patientDao.deleteEffects(p.patient.id)
+            val links = folderLinksFor(p.patient)
             val cvMap = p.customValues.associate { it.fieldId to it.value }
-            val links = patientDao.getAllLinks()
             val docIds = links.map { it.documentId }.toSet()
             for (docId in docIds) {
                 val net = links.filter { it.documentId == docId }.sumOf { link -> effectFor(link, p.patient, cvMap) }
@@ -125,6 +153,13 @@ class PatientRepository(private val db: AppDatabase) {
             }
         }
     }
+
+    /**
+     * Only links belonging to the patient's folder may affect that patient —
+     * folders are isolated workspaces.
+     */
+    private suspend fun folderLinksFor(p: PatientEntity): List<PatientFieldLinkEntity> =
+        patientDao.getAllLinksForFolder(p.folderId)
 
     private fun valueFor(p: PatientEntity, customValues: Map<Long, String>, key: String): String {
         if (isCustomKey(key)) return customValues[customFieldIdFromKey(key)] ?: ""
@@ -147,7 +182,7 @@ class PatientRepository(private val db: AppDatabase) {
     private suspend fun syncEffects(patientId: Long, recordStats: Boolean = false) {
         val p = patientDao.getWithValues(patientId) ?: return
         val cvMap = p.customValues.associate { it.fieldId to it.value }
-        val links = patientDao.getAllLinks()
+        val links = folderLinksFor(p.patient)
         val newNets = netsFor(links, p.patient, cvMap)
         val oldEffects = patientDao.getEffects(patientId).associate { it.documentId to it.netDelta }
         val docIds = (newNets.keys + oldEffects.keys).toSet()

@@ -14,6 +14,7 @@ import java.util.Locale
 
 @Database(
     entities = [
+        FolderEntity::class,
         DocumentEntity::class,
         FormEntity::class,
         FormFieldEntity::class,
@@ -32,10 +33,11 @@ import java.util.Locale
         PatientFieldLinkEntity::class,
         PatientDocumentEffectEntity::class,
     ],
-        version = 26,
+        version = 29,
         exportSchema = false
     )
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun folderDao(): FolderDao
     abstract fun documentDao(): DocumentDao
     abstract fun formDao(): FormDao
     abstract fun submissionDao(): SubmissionDao
@@ -334,13 +336,58 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS folders (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        colorArgb INTEGER NOT NULL,
+                        sortOrder INTEGER NOT NULL,
+                        version INTEGER NOT NULL,
+                        extras TEXT NOT NULL
+                    )"""
+                )
+                db.execSQL(
+                    "INSERT OR IGNORE INTO folders (id, name, description, colorArgb, sortOrder, version, extras) " +
+                        "VALUES (1, 'По умолчанию', '', 0, 0, 1, '')"
+                )
+                db.execSQL("ALTER TABLE documents ADD COLUMN folderId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_documents_folderId ON documents(folderId)")
+                db.execSQL("ALTER TABLE patients ADD COLUMN folderId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_patients_folderId ON patients(folderId)")
+                db.execSQL("ALTER TABLE reports ADD COLUMN folderId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_reports_folderId ON reports(folderId)")
+                db.execSQL("ALTER TABLE patient_custom_fields ADD COLUMN folderId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_patient_custom_fields_folderId ON patient_custom_fields(folderId)")
+            }
+        }
+
+        val MIGRATION_27_28 = object : Migration(27, 28) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE report_columns ADD COLUMN agg TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_28_29 = object : Migration(28, 29) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE patient_field_links ADD COLUMN folderId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL(
+                    "UPDATE patient_field_links SET folderId = COALESCE(" +
+                        "(SELECT folderId FROM documents WHERE documents.id = patient_field_links.documentId), 1)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_patient_field_links_folderId ON patient_field_links(folderId)")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "entimate.db"
-                )                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26)
+                )                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -394,7 +441,7 @@ abstract class AppDatabase : RoomDatabase() {
             fun insertLink(sourceKey: String, conditionValue: String, docId: Long, operation: String, amount: Int): Long {
                 val cv = ContentValues().apply {
                     put("sourceKey", sourceKey); put("conditionValue", conditionValue)
-                    put("documentId", docId); put("operation", operation); put("amount", amount)
+                    put("documentId", docId); put("operation", operation); put("amount", amount); put("folderId", 1)
                 }
                 return db.insert("patient_field_links", SQLiteDatabase.CONFLICT_IGNORE, cv)
             }
@@ -411,6 +458,10 @@ abstract class AppDatabase : RoomDatabase() {
         private fun seedDatabase(db: SupportSQLiteDatabase) {
             db.beginTransaction()
             try {
+                db.execSQL(
+                    "INSERT OR IGNORE INTO folders (id, name, description, colorArgb, sortOrder, version, extras) " +
+                        "VALUES (1, 'По умолчанию', '', 0, 0, 1, '')"
+                )
                 val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val today = dateFmt.format(Date())
 

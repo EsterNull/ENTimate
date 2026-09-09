@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,6 +56,24 @@ private fun optList(fo: FieldOpt): List<String> = when (fo.key) {
     else -> fo.options.split(",").map { it.trim() }.filter { it.isNotBlank() }
 }
 
+private fun aggregationName(a: String): String = when (a) {
+    "SUM" -> "Сумма"
+    "AVG" -> "Среднее"
+    "MIN" -> "Минимум"
+    "MAX" -> "Максимум"
+    "COUNT" -> "Количество пациентов"
+    else -> "Группировка"
+}
+
+private val AGG_OPTIONS = listOf(
+    "" to "Группировка",
+    "SUM" to "Сумма",
+    "AVG" to "Среднее",
+    "MIN" to "Минимум",
+    "MAX" to "Максимум",
+    "COUNT" to "Количество пациентов",
+)
+
 private fun operatorOptions(type: String): List<Pair<String, String>> = when (type) {
     "TEXT" -> listOf("EQ" to "совпадает", "CONTAINS" to "совпадает частично")
     "NUMBER" -> listOf("EQ" to "равно", "GT" to "больше", "GTE" to "больше или равно", "LT" to "меньше", "LTE" to "меньше или равно")
@@ -72,7 +91,7 @@ fun ReportEditScreen(reportId: Long, nav: NavController, vm: ReportsViewModel = 
         if (reportId != 0L) {
             val kind = repo.getReportWithColumns(reportId)?.report?.kind
                 ?: repo.getReportWithDocument(reportId)?.report?.kind
-            chosen = if (kind == "DOCUMENT") "DOCUMENT" else "TABLE"
+            chosen = if (kind == "DOCUMENT") "DOCUMENT" else kind
         }
     }
     when {
@@ -83,7 +102,7 @@ fun ReportEditScreen(reportId: Long, nav: NavController, vm: ReportsViewModel = 
         chosen == "DOCUMENT" ->
             DocumentReportEditor(reportId = reportId, nav = nav)
         else ->
-            TableReportEditor(reportId = reportId, nav = nav)
+            TableReportEditor(reportId = reportId, nav = nav, kind = chosen ?: "TABLE")
     }
 }
 
@@ -107,14 +126,19 @@ private fun ChooserScaffold(nav: NavController, onChoose: (String) -> Unit) {
             Spacer(Modifier.height(16.dp))
             Button(onClick = { onChoose("TABLE") }, modifier = Modifier.fillMaxWidth()) { Text("Таблица") }
             Spacer(Modifier.height(8.dp))
+            Button(onClick = { onChoose("SUMMARY") }, modifier = Modifier.fillMaxWidth()) { Text("Сводка") }
+            Spacer(Modifier.height(8.dp))
             Button(onClick = { onChoose("DOCUMENT") }, modifier = Modifier.fillMaxWidth()) { Text("Документ") }
+            Spacer(Modifier.height(12.dp))
+            Text("Сводка — группировка пациентов по полям и подсчёт сумм/средних числовых полей в группах.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TableReportEditor(reportId: Long, nav: NavController) {
+fun TableReportEditor(reportId: Long, nav: NavController, kind: String = "TABLE") {
+    val isSummary = kind == "SUMMARY"
     val app = LocalContext.current.applicationContext as EntimateApplication
     val repo = app.reportRepository
     val scope = rememberCoroutineScope()
@@ -127,9 +151,11 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
     val filters = remember { mutableStateListOf<ReportFilterEntity>() }
     var customFields by remember { mutableStateOf(listOf<PatientCustomFieldEntity>()) }
     var loaded by remember { mutableStateOf(reportId == 0L) }
+    var reportFolder by remember { mutableStateOf(0L) }
     var showColumnPicker by remember { mutableStateOf(false) }
     var showFilterPicker by remember { mutableStateOf(false) }
     var editingColumn by remember { mutableStateOf(-1) }
+    var nextColId by remember { mutableStateOf(-1L) }
     val collapsedInterp = remember { mutableStateMapOf<Long, Boolean>() }
 
     val fieldOpts by remember(customFields) { mutableStateOf(buildFieldOpts(customFields)) }
@@ -137,7 +163,6 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
-        customFields = repo.patientCustomFields()
         if (reportId != 0L) {
             val r = repo.getReportWithFilters(reportId)
             if (r != null) {
@@ -148,18 +173,23 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                 columns.addAll(r.columns.map { it.copy() })
                 filters.clear()
                 filters.addAll(r.filters.map { it.copy() })
+                reportFolder = r.report.folderId
+                customFields = repo.patientCustomFields(r.report.folderId)
             }
             loaded = true
+        } else {
+            customFields = repo.patientCustomFields(repo.currentFolderId())
         }
     }
 
     fun saveAnd(action: (Long) -> Unit) {
         if (name.isBlank()) { nameError = true; return }
         scope.launch {
-            val dup = repo.getAllReports().any { it.id != reportId && it.name.equals(name.trim(), ignoreCase = true) }
+            val folder = if (reportFolder != 0L) reportFolder else repo.currentFolderId()
+            val dup = repo.getAllReports(folder).any { it.id != reportId && it.name.equals(name.trim(), ignoreCase = true) }
             if (dup) { nameError = true; return@launch }
             val id = repo.saveReport(
-                ReportEntity(id = reportId, name = name.trim(), description = description.trim(), colorArgb = color),
+                ReportEntity(id = reportId, name = name.trim(), description = description.trim(), colorArgb = color, folderId = reportFolder, kind = if (isSummary) "SUMMARY" else "DOCUMENTS"),
                 columns = columns.mapIndexed { i, c -> c.copy(position = i) },
                 filters = filters.mapIndexed { i, f -> f.copy(position = i) },
             )
@@ -170,7 +200,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (reportId == 0L) "Новый отчёт" else "Редактировать отчёт") },
+                title = { Text(if (reportId == 0L) (if (isSummary) "Новая сводка" else "Новый отчёт") else (if (isSummary) "Редактировать сводку" else "Редактировать отчёт")) },
                 navigationIcon = { IconButton(onClick = { nav.navigateBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") } },
                 actions = {
                     IconButton(onClick = { saveAnd { id -> nav.navigate("reports/preview/$id/0/${System.currentTimeMillis()}") } }) {
@@ -201,24 +231,47 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                 ColorRow(color = color, onColorChange = { color = it })
                 Spacer(Modifier.height(20.dp))
 
-                Text("Поля отчёта (столбцы)", style = MaterialTheme.typography.titleMedium)
+                Text(if (isSummary) "Поля сводки (столбцы)" else "Поля отчёта (столбцы)", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
+                if (isSummary) {
+                    Text("Каждый столбец — либо группировка (объединяет пациентов с одинаковым значением), либо мера (сумма/среднее/минимум/максимум/количество). Строка «Итого» добавляется автоматически.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    Spacer(Modifier.height(8.dp))
+                }
                 if (columns.isEmpty()) {
                     Text("Нет выбранных полей.", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall)
                 }
             }
-            items(columns.size, key = { columns[it].id }) { idx ->
+            items(columns.size, key = { idx -> columns[idx].id }) { idx ->
                 val col = columns[idx]
                     val header = if (col.label.isNotBlank()) col.label else (col.sourceFieldKeys.ifBlank { col.fieldKey }).split(",").firstOrNull()?.let { optByKey[it]?.label ?: it } ?: "Колонка"
                     val colKeys = col.sourceFieldKeys.ifBlank { col.fieldKey }.split(",").map { it.trim() }.filter { it.isNotBlank() }
                     val containsCheckbox = colKeys.any { optByKey[it]?.type == "CHECKBOX" }
+                    Box(Modifier.animateItem()) {
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { editingColumn = idx; showColumnPicker = true }) {
                         Column(Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("${idx + 1}. $header", modifier = Modifier.weight(1f))
+                                if (idx > 0) IconButton(onClick = {
+                                    val tmp = columns[idx - 1]; columns[idx - 1] = columns[idx]; columns[idx] = tmp
+                                }, modifier = Modifier.size(34.dp)) {
+                                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Вверх")
+                                }
+                                if (idx < columns.lastIndex) IconButton(onClick = {
+                                    val tmp = columns[idx + 1]; columns[idx + 1] = columns[idx]; columns[idx] = tmp
+                                }, modifier = Modifier.size(34.dp)) {
+                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Вниз")
+                                }
                                 IconButton(onClick = { columns.removeAt(idx) }) {
                                     Icon(Icons.Filled.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.error)
                                 }
+                            }
+                            if (isSummary) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    aggregationName(col.agg),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (col.agg.isBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                                )
                             }
                             val dropdownKeys = colKeys.filter { optByKey[it]?.type == "DROPDOWN" }
                     val hasInterp = containsCheckbox || dropdownKeys.isNotEmpty()
@@ -318,10 +371,11 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                             }
                         }
                     }
+                    }
             }
             item {
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { editingColumn = -1; showColumnPicker = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Добавить поле") }
+                Button(onClick = { editingColumn = -1; showColumnPicker = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(if (isSummary) "Добавить группировку или меру" else "Добавить поле") }
 
                 Spacer(Modifier.height(20.dp))
                 Text("Фильтры (условия включения пациентов)", style = MaterialTheme.typography.titleMedium)
@@ -330,7 +384,7 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
                     Text("Без фильтров будут показаны все пациенты.", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall)
                 }
             }
-            items(filters.size, key = { filters[it].id }) { idx ->
+            items(filters.size) { idx ->
                 val f = filters[idx]
                     val fo = optByKey[f.fieldKey]
                     FilterRow(
@@ -355,12 +409,19 @@ fun TableReportEditor(reportId: Long, nav: NavController) {
 
     if (showColumnPicker) {
         AddColumnDialog(
-            title = if (editingColumn < 0) "Поле отчёта" else "Изменить поле",
+            title = if (editingColumn < 0) "Столбец сводки" else "Изменить столбец",
             fieldOpts = fieldOpts,
             initial = if (editingColumn < 0) null else columns.getOrNull(editingColumn),
+            isSummary = isSummary,
             onDismiss = { showColumnPicker = false; editingColumn = -1 },
             onConfirm = { col ->
-                if (editingColumn < 0) columns.add(col) else columns[editingColumn] = col
+                if (editingColumn < 0) {
+                    val toAdd = if (col.id == 0L) col.copy(id = nextColId) else col
+                    columns.add(toAdd)
+                    nextColId--
+                } else {
+                    columns[editingColumn] = col
+                }
                 showColumnPicker = false
                 editingColumn = -1
             },
@@ -506,6 +567,7 @@ private fun AddColumnDialog(
     title: String,
     fieldOpts: List<FieldOpt>,
     initial: ReportColumnEntity?,
+    isSummary: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (ReportColumnEntity) -> Unit,
 ) {
@@ -515,64 +577,101 @@ private fun AddColumnDialog(
     var label by remember { mutableStateOf(initial?.label ?: "") }
     var align by remember { mutableStateOf(initial?.align ?: "LEFT") }
     var hideValues by remember { mutableStateOf(initial?.hideValues == 1) }
+    var agg by remember { mutableStateOf(initial?.agg ?: "") }
+    var aggExpanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val isCount = isSummary && agg == "COUNT"
+    val isMeasure = isSummary && agg.isNotBlank() && agg != "COUNT"
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                 OutlinedTextField(value = label, onValueChange = { label = it.stripNewlines() }, label = { Text("Заголовок (необязательно)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = separator, onValueChange = { separator = it.stripNewlines() }, label = { Text("Разделитель") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptionsDone, keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }))
-                Spacer(Modifier.height(8.dp))
-                var alignExpanded by remember { mutableStateOf(false) }
-                val alignOptions = listOf("LEFT" to "По левому краю", "CENTER" to "По центру", "RIGHT" to "По правому краю")
-                ExposedDropdownMenuBox(expanded = alignExpanded, onExpandedChange = { alignExpanded = it }, modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = alignOptions.firstOrNull { it.first == align }?.second ?: "По левому краю",
-                        onValueChange = {}, readOnly = true, label = { Text("Выравнивание значений столбца") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = alignExpanded) },
-                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
-                    )
-                    ExposedDropdownMenu(expanded = alignExpanded, onDismissRequest = { alignExpanded = false }) {
-                        alignOptions.forEach { o -> DropdownMenuItem(text = { Text(o.second) }, onClick = { align = o.first; alignExpanded = false }) }
+                if (isSummary) {
+                    Spacer(Modifier.height(8.dp))
+                    ExposedDropdownMenuBox(expanded = aggExpanded, onExpandedChange = { aggExpanded = it }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = aggregationName(agg),
+                            onValueChange = {}, readOnly = true, label = { Text("Назначение столбца") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(aggExpanded) },
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(expanded = aggExpanded, onDismissRequest = { aggExpanded = false }) {
+                            AGG_OPTIONS.forEach { o -> DropdownMenuItem(text = { Text(o.second) }, onClick = { agg = o.first; aggExpanded = false }) }
+                        }
+                    }
+                }
+                if (!isCount) {
+                    Spacer(Modifier.height(8.dp))
+                    if (!isMeasure) {
+                        OutlinedTextField(value = separator, onValueChange = { separator = it.stripNewlines() }, label = { Text("Разделитель") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptionsDone, keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }))
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    var alignExpanded by remember { mutableStateOf(false) }
+                    val alignOptions = listOf("LEFT" to "По левому краю", "CENTER" to "По центру", "RIGHT" to "По правому краю")
+                    ExposedDropdownMenuBox(expanded = alignExpanded, onExpandedChange = { alignExpanded = it }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = alignOptions.firstOrNull { it.first == align }?.second ?: "По левому краю",
+                            onValueChange = {}, readOnly = true, label = { Text("Выравнивание значений столбца") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = alignExpanded) },
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(expanded = alignExpanded, onDismissRequest = { alignExpanded = false }) {
+                            alignOptions.forEach { o -> DropdownMenuItem(text = { Text(o.second) }, onClick = { align = o.first; alignExpanded = false }) }
+                        }
+                    }
+                    if (!isSummary) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = hideValues, onCheckedChange = { hideValues = it })
+                            Spacer(Modifier.width(6.dp))
+                            Text("Скрыть значения (оставить только заголовок)", style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = hideValues, onCheckedChange = { hideValues = it })
-                    Spacer(Modifier.width(6.dp))
-                    Text("Скрыть значения (оставить только заголовок)", style = MaterialTheme.typography.labelMedium)
-                }
-                Spacer(Modifier.height(8.dp))
-                Text("Поля (можно выбрать несколько для объединения):", style = MaterialTheme.typography.labelMedium)
-                Spacer(Modifier.height(4.dp))
-                fieldOpts.forEach { fo ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Checkbox(checked = selected.contains(fo.key), onCheckedChange = { on -> selected = if (on) selected + fo.key else selected - fo.key })
-                        Spacer(Modifier.width(6.dp))
-                        Text(fo.label)
+                if (isCount) {
+                    Text("Столбец «Количество пациентов» считает число пациентов в группе. Выбор полей не требуется.", style = MaterialTheme.typography.labelMedium)
+                } else {
+                    Text(
+                        if (isMeasure) "Числовое поле для агрегации:" else "Поля (можно выбрать несколько для объединения):",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    fieldOpts.forEach { fo ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Checkbox(checked = selected.contains(fo.key), onCheckedChange = { on -> selected = if (on) selected + fo.key else selected - fo.key })
+                            Spacer(Modifier.width(6.dp))
+                            Text(fo.label)
+                        }
                     }
                 }
             }
         },
         confirmButton = {
+            val valid = if (isSummary) {
+                isCount || selected.isNotEmpty()
+            } else {
+                selected.isNotEmpty()
+            }
             TextButton(onClick = {
-                if (selected.isNotEmpty()) {
+                if (valid) {
                     val keys = selected.toList()
                     onConfirm(
                         ReportColumnEntity(
                             id = initial?.id ?: 0,
                             reportId = 0,
-                            fieldKey = keys.first(),
-                            sourceFieldKeys = keys.joinToString(","),
+                            fieldKey = if (isCount) "" else keys.firstOrNull() ?: "",
+                            sourceFieldKeys = if (isCount) "" else keys.joinToString(","),
                             joinSeparator = separator.ifBlank { " " },
                             label = label.trim(),
                             trueText = initial?.trueText ?: "",
                             falseText = initial?.falseText ?: "",
                             align = align,
                             position = initial?.position ?: 0,
-                            hideValues = if (hideValues) 1 else 0,
+                            hideValues = if (isSummary) 0 else if (hideValues) 1 else 0,
+                            agg = if (isSummary) agg else "",
                         )
                     )
                 }

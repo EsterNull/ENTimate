@@ -5,20 +5,30 @@ import com.example.entimate.data.local.*
 import com.example.entimate.data.local.DocCell
 import com.example.entimate.data.local.manualTableFromJson
 import com.example.entimate.ui.components.formatIsoDate
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
 import java.util.*
 
 const val DROPDOWN_EMPTY_MARKER = "\u0000__EMPTY__\u0000"
 
-class ReportRepository(private val db: AppDatabase) {
+@OptIn(ExperimentalCoroutinesApi::class)
+class ReportRepository(
+    private val db: AppDatabase,
+    private val folderRepo: FolderRepository,
+) {
     private val reportDao = db.reportDao()
     private val patientDao = db.patientDao()
     private val isoFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     val reportsFlow: Flow<List<ReportWithColumns>> =
-        reportDao.observeAll().map { list -> list.map { it.copy(report = it.report.migrate()) } }
+        folderRepo.currentFolderIdFlow.flatMapLatest { fid ->
+            reportDao.observeAll(fid).map { list -> list.map { it.copy(report = it.report.migrate()) } }
+        }
+
+    suspend fun currentFolderId(): Long = folderRepo.currentFolderId()
 
     suspend fun saveReport(
         report: ReportEntity,
@@ -26,7 +36,7 @@ class ReportRepository(private val db: AppDatabase) {
         filters: List<ReportFilterEntity>,
     ): Long = db.withTransaction {
         val id = if (report.id == 0L) {
-            reportDao.insertReport(report)
+            reportDao.insertReport(report.copy(folderId = folderRepo.currentFolderId()))
         } else {
             reportDao.updateReport(report)
             report.id
@@ -42,7 +52,8 @@ class ReportRepository(private val db: AppDatabase) {
         report: ReportEntity,
         blocks: List<Pair<ReportParagraphEntity, List<ReportDocElementEntity>>>,
     ): Long = db.withTransaction {
-        val id = if (report.id == 0L) reportDao.insertReport(report) else { reportDao.updateReport(report); report.id }
+        val id = if (report.id == 0L) reportDao.insertReport(report.copy(folderId = folderRepo.currentFolderId()))
+        else { reportDao.updateReport(report); report.id }
         reportDao.deleteParagraphsForReport(id)
         reportDao.deleteElementsForReport(id)
         blocks.forEach { (p, els) ->
@@ -110,18 +121,20 @@ class ReportRepository(private val db: AppDatabase) {
     suspend fun getReportWithFilters(id: Long) = reportDao.getWithFilters(id)?.let { it.copy(report = it.report.migrate()) }
     suspend fun getReportWithDocument(id: Long) = reportDao.getWithDocument(id)?.let { it.copy(report = it.report.migrate()) }
     suspend fun deleteReport(report: ReportEntity) = reportDao.deleteReport(report)
-    suspend fun tableReports(): List<ReportEntity> = reportDao.getTableReports().map { it.migrate() }
+
+    suspend fun tableReports(folderId: Long): List<ReportEntity> = reportDao.getTableReports(folderId).map { it.migrate() }
     suspend fun getColumnsForReport(reportId: Long): List<ReportColumnEntity> = reportDao.getColumnsForReport(reportId)
-    suspend fun getAllReports() = reportDao.getAll().map { it.migrate() }
+    suspend fun getAllReports(folderId: Long) = reportDao.getAll(folderId).map { it.migrate() }
     suspend fun reorder(orderedIds: List<Long>) {
         orderedIds.forEachIndexed { index, id -> reportDao.setSortOrder(id, index) }
     }
-    suspend fun patientCustomFields() = patientDao.getAllCustomFields()
-    suspend fun getEarliestPatientTime(): Long? = patientDao.getEarliestCreatedAt()
+    suspend fun patientCustomFields(folderId: Long) = patientDao.getAllCustomFields(folderId)
+    suspend fun getEarliestPatientTime(folderId: Long): Long? = patientDao.getEarliestCreatedAt(folderId)
 
     suspend fun duplicateReport(reportId: Long): Long = db.withTransaction {
         val src = reportDao.getWithFilters(reportId) ?: return@withTransaction 0L
-        val existing = reportDao.getAll().map { it.name.lowercase() }
+        val folder = src.report.folderId
+        val existing = reportDao.getAll(folder).map { it.name.lowercase() }
         val base = src.report.name.replace(Regex(""" \(\d+\)$"""), "")
         var n = 1
         var candidate = "$base ($n)"
@@ -129,7 +142,7 @@ class ReportRepository(private val db: AppDatabase) {
             n++
             candidate = "$base ($n)"
         }
-        val newId = reportDao.insertReport(src.report.copy(id = 0, name = candidate))
+        val newId = reportDao.insertReport(src.report.copy(id = 0, name = candidate, folderId = folder))
         src.columns.forEach { col ->
             reportDao.insertColumn(col.copy(id = 0, reportId = newId))
         }
@@ -230,27 +243,13 @@ class ReportRepository(private val db: AppDatabase) {
 
     suspend fun buildTable(reportId: Long, from: Long, to: Long, dateFormat: String = "dd.MM.yyyy", withNumber: Boolean = false): Table {
         val report = reportDao.getWithFilters(reportId) ?: return Table(emptyList(), emptyList())
-        val all = patientDao.getAllPatientsWithValues()
-        val customFields = patientDao.getAllCustomFields()
+        if (report.report.kind == "SUMMARY") {
+            return buildSummaryTable(report, from, to, dateFormat, withNumber)
+        }
+        val folder = report.report.folderId
+        val customFields = patientDao.getAllCustomFields(folder)
         val customLabels = customFields.associate { it.id to it.label }
-
-        val filtered = if (report.filters.isEmpty()) {
-            all
-        } else {
-            all.filter { pw ->
-                var result = evaluateFilter(pw, report.filters.first(), customFields)
-                report.filters.drop(1).forEach { f ->
-                    val ok = evaluateFilter(pw, f, customFields)
-                    result = if (f.connector == "OR") result || ok else result && ok
-                }
-                result
-            }
-        }
-
-        val inPeriod = filtered.filter {
-            val ad = it.patient.admissionDate
-            if (ad.isBlank()) false else (isoFmt.parse(ad)?.time ?: 0L) in from..to
-        }
+        val inPeriod = loadInPeriod(report, customFields, from, to)
 
         val headers = if (withNumber) listOf("№") + report.columns.map { resolveColumnHeader(it, customFields) }
         else report.columns.map { resolveColumnHeader(it, customFields) }
@@ -268,11 +267,130 @@ class ReportRepository(private val db: AppDatabase) {
         return Table(headers, rows, colAligns)
     }
 
+    private suspend fun loadInPeriod(report: ReportWithFilters, customFields: List<PatientCustomFieldEntity>, from: Long, to: Long): List<PatientWithValues> {
+        val all = patientDao.getAllPatientsWithValues(report.report.folderId)
+        val filtered = if (report.filters.isEmpty()) {
+            all
+        } else {
+            all.filter { pw ->
+                var result = evaluateFilter(pw, report.filters.first(), customFields)
+                report.filters.drop(1).forEach { f ->
+                    val ok = evaluateFilter(pw, f, customFields)
+                    result = if (f.connector == "OR") result || ok else result && ok
+                }
+                result
+            }
+        }
+        return filtered.filter {
+            val ad = it.patient.admissionDate
+            if (ad.isBlank()) false else (isoFmt.parse(ad)?.time ?: 0L) in from..to
+        }
+    }
+
+    private fun aggLabel(a: String): String = when (a) {
+        "SUM" -> "Сумма"
+        "AVG" -> "Среднее"
+        "MIN" -> "Минимум"
+        "MAX" -> "Максимум"
+        "COUNT" -> "Количество"
+        else -> a
+    }
+
+    private fun formatAgg(v: Double): String {
+        val r = (v * 1_000_000.0).let { Math.round(it) / 1_000_000.0 }
+        return if (r == Math.floor(r) && !r.isInfinite() && Math.abs(r) < 1e15) r.toLong().toString() else r.toString()
+    }
+
+    private class AggAcc(val agg: String) {
+        private var sum = 0.0
+        private val values = mutableListOf<Double>()
+        private var count = 0
+
+        fun add(raw: String) {
+            count++
+            if (agg == "COUNT") return
+            val n = parseNum(raw) ?: return
+            values.add(n)
+            sum += n
+        }
+
+        fun result(): Double = when (agg) {
+            "SUM" -> sum
+            "AVG" -> if (values.isEmpty()) 0.0 else sum / values.size
+            "MIN" -> values.minOrNull() ?: 0.0
+            "MAX" -> values.maxOrNull() ?: 0.0
+            "COUNT" -> count.toDouble()
+            else -> 0.0
+        }
+    }
+
+    private fun measureHeader(col: ReportColumnEntity, customFields: List<PatientCustomFieldEntity>): String {
+        if (col.label.isNotBlank()) return col.label
+        if (col.agg == "COUNT" && col.fieldKey.isBlank()) return "Пациентов"
+        return "${resolveColumnHeader(col, customFields)} (${aggLabel(col.agg)})"
+    }
+
+    private suspend fun buildSummaryTable(report: ReportWithFilters, from: Long, to: Long, dateFormat: String, withNumber: Boolean): Table {
+        val folder = report.report.folderId
+        val customFields = patientDao.getAllCustomFields(folder)
+        val customLabels = customFields.associate { it.id to it.label }
+        val inPeriod = loadInPeriod(report, customFields, from, to)
+
+        val groupCols = report.columns.filter { it.agg.isBlank() }
+        val measureCols = report.columns.filter { it.agg.isNotBlank() }
+
+        val groups = linkedMapOf<List<String>, List<AggAcc>>()
+        val totals = measureCols.map { AggAcc(it.agg) }
+
+        for (pw in inPeriod) {
+            val cvMap = pw.customValues.associate { it.fieldId to it.value }
+            val gkey = groupCols.map { resolveColumnValue(it, pw.patient, cvMap, customLabels, customFields, dateFormat) }
+            val accs = groups.getOrPut(gkey) { measureCols.map { AggAcc(it.agg) } }
+            measureCols.forEachIndexed { i, col ->
+                val raw = resolveColumnValue(col, pw.patient, cvMap, customLabels, customFields, dateFormat)
+                accs[i].add(raw)
+                totals[i].add(raw)
+            }
+        }
+
+        val headers = buildList {
+            if (withNumber) add("№")
+            addAll(groupCols.map { resolveColumnHeader(it, customFields) })
+            addAll(measureCols.map { measureHeader(it, customFields) })
+        }
+        val colAligns = buildList {
+            if (withNumber) add("CENTER")
+            addAll(groupCols.map { it.align.ifBlank { "LEFT" } })
+            repeat(measureCols.size) { add("RIGHT") }
+        }
+        val rows = mutableListOf<List<String>>()
+        groups.entries.forEachIndexed { idx, (gkey, accs) ->
+            val row = mutableListOf<String>()
+            if (withNumber) row.add((idx + 1).toString())
+            row.addAll(gkey)
+            accs.forEach { row.add(formatAgg(it.result())) }
+            rows.add(row)
+        }
+        if (measureCols.isNotEmpty()) {
+            val total = mutableListOf<String>()
+            if (withNumber) total.add("")
+            groupCols.forEachIndexed { gi, _ -> total.add("") }
+            val lastGroupIdx = groupCols.lastIndex
+            val gOff = if (withNumber) 1 else 0
+            if (lastGroupIdx >= 0) total[gOff + lastGroupIdx] = "Итого"
+            totals.forEach { total.add(formatAgg(it.result())) }
+            rows.add(total)
+        }
+        return Table(headers, rows, colAligns)
+    }
+
     private fun evaluateFilter(pw: PatientWithValues, filter: ReportFilterEntity, customFields: List<PatientCustomFieldEntity>): Boolean {
         val value = columnValue(pw.patient, pw.customValues.associate { it.fieldId to it.value }, customFields.associate { it.id to it.label }, filter.fieldKey)
         return passes(value, filter.operator, filter.value)
     }
 }
+
+internal fun parseNum(raw: String): Double? = raw.trim().replace(',', '.').toDoubleOrNull()
 
 internal fun parseDropdownMap(s: String): Map<String, String> {
     if (s.isBlank()) return emptyMap()

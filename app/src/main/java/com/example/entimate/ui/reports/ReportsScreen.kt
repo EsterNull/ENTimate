@@ -32,6 +32,8 @@ import com.example.entimate.ui.components.LocalTutorial
 import com.example.entimate.ui.components.colorLuminance
 import com.example.entimate.ui.components.tutorialAnchor
 import com.example.entimate.ui.components.SwipeableRow
+import com.example.entimate.ui.folders.CurrentFolderBar
+import com.example.entimate.ui.folders.FolderBarHeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -169,81 +171,91 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
             )
         },
     ) { padding ->
-        if (reports.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) { Text("Нет отчётов.\nНажмите + чтобы создать.", textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                state = listState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                itemsIndexed(reports, key = { _, r -> r.report.id }) { index, r ->
-                    if (reordering) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column {
-                                IconButton(
-                                    onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
-                                    enabled = index > 0,
-                                ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
-                                IconButton(
-                                    onClick = { if (index < reports.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
-                                    enabled = index < reports.lastIndex,
-                                ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            if (reports.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Нет отчётов.\nНажмите + чтобы создать.", textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = FolderBarHeight + 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    itemsIndexed(reports, key = { _, r -> r.report.id }) { index, r ->
+                        if (reordering) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateItem(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column {
+                                    IconButton(
+                                        onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
+                                        enabled = index > 0,
+                                    ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
+                                    IconButton(
+                                        onClick = { if (index < reports.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
+                                        enabled = index < reports.lastIndex,
+                                    ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    ReportCard(
+                                        report = r,
+                                        onGenerate = {},
+                                        onClick = {},
+                                        onLongClick = {},
+                                    )
+                                }
                             }
-                            Box(Modifier.weight(1f)) {
+                        } else {
+                            SwipeableRow(
+                                onSwipeLeft = { pendingDelete = r },
+                                onSwipeRight = { nav.navigate("reports/edit/${r.report.id}") },
+                                backgroundLeft = {
+                                    Box(
+                                        Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
+                                        contentAlignment = Alignment.CenterEnd,
+                                    ) { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                },
+                                backgroundRight = {
+                                    Box(
+                                        Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 24.dp),
+                                        contentAlignment = Alignment.CenterStart,
+                                    ) { Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                },
+                            ) {
                                 ReportCard(
                                     report = r,
-                                    onGenerate = {},
-                                    onClick = {},
-                                    onLongClick = {},
+                                    onGenerate = {
+                                        fromMillis = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+                                        toMillis = System.currentTimeMillis()
+                                        generateTarget = r
+                                    },
+                                    onClick = {
+                                        val now = System.currentTimeMillis()
+                                        val weekAgo = now - 7L * 24 * 60 * 60 * 1000
+                                        val base = if (r.report.kind == "DOCUMENT") "reports/docpreview/${r.report.id}" else "reports/preview/${r.report.id}"
+                                        nav.navigate("$base/$weekAgo/$now")
+                                    },
+                                    onLongClick = { pendingDup = r },
                                 )
                             }
-                        }
-                    } else {
-                        SwipeableRow(
-                            onSwipeLeft = { pendingDelete = r },
-                            onSwipeRight = { nav.navigate("reports/edit/${r.report.id}") },
-                            backgroundLeft = {
-                                Box(
-                                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
-                                    contentAlignment = Alignment.CenterEnd,
-                                ) { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-                            },
-                            backgroundRight = {
-                                Box(
-                                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 24.dp),
-                                    contentAlignment = Alignment.CenterStart,
-                                ) { Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                            },
-                        ) {
-                            ReportCard(
-                                report = r,
-                                onGenerate = {
-                                    fromMillis = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
-                                    toMillis = System.currentTimeMillis()
-                                    generateTarget = r
-                                },
-                                onClick = {
-                                    val now = System.currentTimeMillis()
-                                    val weekAgo = now - 7L * 24 * 60 * 60 * 1000
-                                    val base = if (r.report.kind == "DOCUMENT") "reports/docpreview/${r.report.id}" else "reports/preview/${r.report.id}"
-                                    nav.navigate("$base/$weekAgo/$now")
-                                },
-                                onLongClick = { pendingDup = r },
-                            )
                         }
                     }
                 }
             }
+            CurrentFolderBar(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                onOpenFolders = { nav.navigate("folders") },
+            )
         }
     }
 }
@@ -270,6 +282,10 @@ private fun ReportCard(
                 Icon(if (report.report.kind == "DOCUMENT") Icons.Filled.Description else Icons.Filled.TableChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Text(report.report.name.ifBlank { "Без названия" }, style = MaterialTheme.typography.titleMedium, color = onBg)
+            }
+            if (report.report.kind == "SUMMARY") {
+                Spacer(Modifier.height(4.dp))
+                Text("Сводка", style = MaterialTheme.typography.labelSmall, color = onBg.copy(alpha = 0.7f))
             }
             if (report.report.description.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))

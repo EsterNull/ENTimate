@@ -23,10 +23,13 @@ class PatientsViewModel(application: Application) : AndroidViewModel(application
         .catch { emit(emptyList<DocumentEntity>()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val links: StateFlow<List<PatientFieldLinkEntity>> = repo.linksFlow
+        .catch { emit(emptyList<PatientFieldLinkEntity>()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val effectEvents: Flow<String> = repo.effectLog
 
     suspend fun getPatient(id: Long) = repo.getPatient(id)
-    suspend fun getAllLinks() = repo.getAllLinks()
 
     fun savePatient(patient: PatientEntity, customValues: Map<Long, String>) =
         viewModelScope.launch { repo.savePatient(patient, customValues) }

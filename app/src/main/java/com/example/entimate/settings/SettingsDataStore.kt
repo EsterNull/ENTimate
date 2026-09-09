@@ -16,6 +16,7 @@ object SettingsKeys {
     val CUSTOM_SECONDARY_COLOR = longPreferencesKey("custom_secondary_color")
     val DATE_FORMAT = stringPreferencesKey("date_format")
     val TUTORIAL_SEEN = booleanPreferencesKey("tutorial_seen")
+    val CURRENT_FOLDER_ID = longPreferencesKey("current_folder_id")
 }
 
 data class ThemeSettings(
@@ -63,4 +64,11 @@ class SettingsDataStore(private val context: Context) {
 
     fun isTutorialSeen(): Flow<Boolean> =
         context.dataStore.data.map { prefs -> prefs[SettingsKeys.TUTORIAL_SEEN] ?: false }
+
+    fun currentFolderIdFlow(): Flow<Long> =
+        context.dataStore.data.map { prefs -> prefs[SettingsKeys.CURRENT_FOLDER_ID] ?: 1L }
+
+    suspend fun setCurrentFolderId(id: Long) {
+        context.dataStore.edit { prefs -> prefs[SettingsKeys.CURRENT_FOLDER_ID] = id }
+    }
 }

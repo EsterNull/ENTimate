@@ -11,12 +11,13 @@ import kotlinx.coroutines.launch
 
 class EntimateApplication : Application() {
     val database by lazy { AppDatabase.build(this) }
-    val documentRepository by lazy { DocumentRepository(database.documentDao()) }
-    val formRepository by lazy { FormRepository(database) }
     val settingsDataStore by lazy { SettingsDataStore(this) }
-    val backupRepository by lazy { BackupRepository(database, settingsDataStore) }
-    val reportRepository by lazy { ReportRepository(database) }
-    val patientRepository by lazy { PatientRepository(database) }
+    val folderRepository by lazy { FolderRepository(database, settingsDataStore) }
+    val documentRepository by lazy { DocumentRepository(database.documentDao(), folderRepository) }
+    val formRepository by lazy { FormRepository(database, folderRepository) }
+    val backupRepository by lazy { BackupRepository(database, settingsDataStore, folderRepository) }
+    val reportRepository by lazy { ReportRepository(database, folderRepository) }
+    val patientRepository by lazy { PatientRepository(database, folderRepository) }
 
     override fun onCreate() {
         super.onCreate()

@@ -93,6 +93,15 @@ jobs:
             --out app/build/outputs/apk/release/ENTimate.apk \
             app/build/outputs/apk/release/app-release-unsigned.apk
 
+      - name: Save commit message as release description
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          git log -1 --pretty=%B > "$GITHUB_WORKSPACE/release_body.md"
+          if [ ! -s "$GITHUB_WORKSPACE/release_body.md" ]; then
+            echo "Автоматический релиз приложения." > "$GITHUB_WORKSPACE/release_body.md"
+          fi
+          echo "::notice::Taking release description from the commit message"
+
       - name: Create release and upload APK
         if: steps.check.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
@@ -100,6 +109,4 @@ jobs:
           tag_name: ${{ steps.version.outputs.app_version }}
           name: ${{ steps.version.outputs.app_version }}
           files: app/build/outputs/apk/release/ENTimate.apk
-          body: |
-            Автоматический релиз приложения.
-          generate_release_notes: true
+          body_path: ${{ github.workspace }}/release_body.md

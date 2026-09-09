@@ -52,6 +52,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
     val repo = app.patientRepository
     val scope = rememberCoroutineScope()
     val customFields by vm.customFields.collectAsStateWithLifecycle()
+    val documents by vm.documents.collectAsStateWithLifecycle()
 
     var loaded by remember { mutableStateOf(patientId == 0L) }
     val values = remember { mutableStateMapOf<String, String>() }
@@ -158,6 +159,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             colorArgb = 0,
             createdAt = if (createdAt == 0L) System.currentTimeMillis() else createdAt,
             sortOrder = existingPatient?.sortOrder ?: 0,
+            folderId = existingPatient?.folderId ?: 0,
             discharged = existingPatient?.discharged ?: 0,
             dischargeDate = existingPatient?.dischargeDate ?: "",
             version = existingPatient?.version ?: CURRENT_DATA_VERSION,
@@ -221,7 +223,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
                 Text("Пользовательские поля", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 customFields.forEach { cf ->
-                    CustomFieldEditor(cf, customValues[cf.id] ?: "", onValueChange = { customValues[cf.id] = it }, isLast = "custom:${cf.id}" == lastFieldKey)
+                    CustomFieldEditor(cf, customValues[cf.id] ?: "", onValueChange = { customValues[cf.id] = it }, documents = documents, isLast = "custom:${cf.id}" == lastFieldKey)
                     Spacer(Modifier.height(10.dp))
                 }
             }
@@ -326,7 +328,7 @@ private fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onValueChange: (String) -> Unit, onDelete: (() -> Unit)? = null, isLast: Boolean = false) {
+private fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onValueChange: (String) -> Unit, documents: List<DocumentEntity> = emptyList(), onDelete: (() -> Unit)? = null, isLast: Boolean = false) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -356,6 +358,20 @@ private fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onVal
                         )
                         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                             options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { onValueChange(o); expanded = false }) }
+                        }
+                    }
+                }
+                "DOCUMENT" -> {
+                    val docNames = documents.map { it.name }
+                    var expanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = value, onValueChange = {}, readOnly = true, label = { Text("Значение") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            if (docNames.isEmpty()) DropdownMenuItem(text = { Text("Документов нет") }, enabled = false, onClick = {})
+                            docNames.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { onValueChange(o); expanded = false }) }
                         }
                     }
                 }

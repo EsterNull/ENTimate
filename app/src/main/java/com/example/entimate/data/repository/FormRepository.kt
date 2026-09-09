@@ -2,15 +2,22 @@ package com.example.entimate.data.repository
 
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 
-class FormRepository(private val db: AppDatabase) {
+@OptIn(ExperimentalCoroutinesApi::class)
+class FormRepository(
+    private val db: AppDatabase,
+    private val folderRepo: FolderRepository,
+) {
     private val formDao = db.formDao()
     private val documentDao = db.documentDao()
     private val submissionDao = db.submissionDao()
 
     val formsWithDetailsFlow: Flow<List<FormWithDetails>> = formDao.observeAllWithDetails()
-    val documentsFlow: Flow<List<DocumentEntity>> = documentDao.observeAll()
+    val documentsFlow: Flow<List<DocumentEntity>> =
+        folderRepo.currentFolderIdFlow.flatMapLatest { fid -> documentDao.observeAll(fid) }
 
     suspend fun saveForm(
         form: FormEntity,

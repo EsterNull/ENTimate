@@ -32,6 +32,8 @@ import com.example.entimate.ui.reports.ReportEditScreen
 import com.example.entimate.ui.reports.DocumentPreviewScreen
 import com.example.entimate.ui.settings.SettingsScreen
 import com.example.entimate.ui.settings.ThemeSettingsScreen
+import com.example.entimate.ui.folders.FoldersScreen
+import com.example.entimate.ui.folders.FolderEditScreen
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -169,6 +171,11 @@ fun AppNavigation() {
                     composable(Screen.Reports.route) { ReportsScreen(nav = nav) }
                     composable(Screen.Settings.route) { SettingsScreen(nav = nav) }
                     composable("theme") { ThemeSettingsScreen(nav = nav) }
+                    composable("folders") { FoldersScreen(nav = nav) }
+                    composable("folders/edit/{folderId}") { back ->
+                        val id = back.arguments?.getString("folderId")?.toLongOrNull() ?: 0L
+                        FolderEditScreen(folderId = id, nav = nav)
+                    }
                     composable("documents/edit/{docId}") { back ->
                         val id = back.arguments?.getString("docId")?.toLongOrNull() ?: 0L
                         DocumentEditScreen(docId = id, nav = nav)
