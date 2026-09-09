@@ -5,21 +5,47 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+import java.io.FileInputStream
+import java.util.Properties
+
 android {
     namespace = "com.example.entimate"
     compileSdk = 37
+
+    val keystoreProps = Properties()
+    val keystoreFile = rootProject.file("keystore.properties")
+    val hasKeystore = keystoreFile.exists()
+    if (hasKeystore) {
+        keystoreProps.load(FileInputStream(keystoreFile))
+    }
+
+    signingConfigs {
+        create("entimate") {
+            if (hasKeystore) {
+                storeFile = file(keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+                keyAlias = keystoreProps["keyAlias"] as String
+                keyPassword = keystoreProps["keyPassword"] as String
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.example.entimate"
         minSdk = 23
         targetSdk = 37
-        versionCode = 15
-        versionName = "1.7.2"
+        versionCode = 16
+        versionName = "1.7.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug {
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("entimate")
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

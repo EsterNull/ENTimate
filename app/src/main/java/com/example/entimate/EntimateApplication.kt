@@ -13,7 +13,7 @@ class EntimateApplication : Application() {
     val database by lazy { AppDatabase.build(this) }
     val settingsDataStore by lazy { SettingsDataStore(this) }
     val folderRepository by lazy { FolderRepository(database, settingsDataStore) }
-    val documentRepository by lazy { DocumentRepository(database.documentDao(), folderRepository) }
+    val documentRepository by lazy { DocumentRepository(database, database.documentDao(), folderRepository) }
     val formRepository by lazy { FormRepository(database, folderRepository) }
     val backupRepository by lazy { BackupRepository(database, settingsDataStore, folderRepository) }
     val reportRepository by lazy { ReportRepository(database, folderRepository) }

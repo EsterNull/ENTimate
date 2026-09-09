@@ -1,9 +1,12 @@
 package com.example.entimate.data.repository
 
+import androidx.room.withTransaction
+import com.example.entimate.data.local.AppDatabase
 import com.example.entimate.data.local.DocumentChangeEntity
 import com.example.entimate.data.local.DocumentDao
 import com.example.entimate.data.local.DocumentEntity
 import com.example.entimate.data.local.migrate
+import kotlin.comparisons.compareBy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -14,6 +17,7 @@ import kotlinx.coroutines.sync.withLock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DocumentRepository(
+    private val db: AppDatabase,
     private val dao: DocumentDao,
     private val folderRepo: FolderRepository,
 ) {
@@ -30,8 +34,18 @@ class DocumentRepository(
         return id
     }
     suspend fun update(doc: DocumentEntity) { dao.update(doc) }
-    suspend fun reorder(orderedIds: List<Long>) {
-        orderedIds.forEachIndexed { index, id -> dao.setOrder(id, index) }
+    suspend fun reorder(from: Int, to: Int) {
+        val ids = dao.getForFolder(folderRepo.currentFolderId())
+            .sortedWith(compareBy<DocumentEntity> { it.sortOrder }.thenBy { it.name })
+            .map { it.id }
+            .toMutableList()
+        if (from !in ids.indices || to !in ids.indices) return
+        val id = ids.removeAt(from)
+        ids.add(to, id)
+        assignOrders(ids)
+    }
+    suspend fun assignOrders(orderedIds: List<Long>) = db.withTransaction {
+        orderedIds.forEachIndexed { index, orderedId -> dao.setOrder(orderedId, index) }
     }
     @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun adjust(docId: Long, sign: Int) {

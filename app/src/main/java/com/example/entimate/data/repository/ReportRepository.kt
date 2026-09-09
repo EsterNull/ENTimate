@@ -5,6 +5,7 @@ import com.example.entimate.data.local.*
 import com.example.entimate.data.local.DocCell
 import com.example.entimate.data.local.manualTableFromJson
 import com.example.entimate.ui.components.formatIsoDate
+import kotlin.comparisons.compareBy
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -125,8 +126,17 @@ class ReportRepository(
     suspend fun tableReports(folderId: Long): List<ReportEntity> = reportDao.getTableReports(folderId).map { it.migrate() }
     suspend fun getColumnsForReport(reportId: Long): List<ReportColumnEntity> = reportDao.getColumnsForReport(reportId)
     suspend fun getAllReports(folderId: Long) = reportDao.getAll(folderId).map { it.migrate() }
-    suspend fun reorder(orderedIds: List<Long>) {
-        orderedIds.forEachIndexed { index, id -> reportDao.setSortOrder(id, index) }
+    suspend fun reorder(from: Int, to: Int) {
+        val ids = reportDao.getForFolder(folderRepo.currentFolderId())
+            .sortedWith(compareBy<ReportEntity> { it.sortOrder }.thenBy { it.name })
+            .map { it.id }
+            .toMutableList()
+        if (from !in ids.indices || to !in ids.indices) return
+        val id = ids.removeAt(from)
+        ids.add(to, id)
+        db.withTransaction {
+            ids.forEachIndexed { index, orderedId -> reportDao.setSortOrder(orderedId, index) }
+        }
     }
     suspend fun patientCustomFields(folderId: Long) = patientDao.getAllCustomFields(folderId)
     suspend fun getEarliestPatientTime(folderId: Long): Long? = patientDao.getEarliestCreatedAt(folderId)

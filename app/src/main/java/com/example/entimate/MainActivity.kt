@@ -11,6 +11,7 @@ import com.example.entimate.settings.ThemeSettings
 import com.example.entimate.ui.components.LocalDatePattern
 import com.example.entimate.ui.navigation.AppNavigation
 import com.example.entimate.ui.theme.AppTheme
+import com.example.entimate.ui.update.AutoUpdateDialog
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,6 +22,7 @@ class MainActivity : ComponentActivity() {
             AppTheme(settings) {
                 CompositionLocalProvider(LocalDatePattern provides settings.dateFormat) {
                     AppNavigation()
+                    AutoUpdateDialog()
                 }
             }
         }

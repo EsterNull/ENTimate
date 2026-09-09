@@ -3,6 +3,7 @@ package com.example.entimate.data.repository
 import android.util.Log
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
+import kotlin.comparisons.compareBy
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -166,8 +167,20 @@ class PatientRepository(
         recomputeAllEffects()
     }
 
-    suspend fun reorder(orderedIds: List<Long>) = db.withTransaction {
-        orderedIds.forEachIndexed { index, id -> patientDao.setSortOrder(id, index) }
+    suspend fun reorder(from: Int, to: Int) {
+        val all = patientDao.getAllPatientsWithValues(folderRepo.currentFolderId())
+            .sortedWith(compareBy<PatientWithValues> { it.patient.sortOrder }.thenBy { it.patient.number })
+        val active = all.filter { it.patient.discharged != 1 }
+        val discharged = all.filter { it.patient.discharged == 1 }
+        if (from !in active.indices || to !in active.indices) return
+        val ids = active.map { it.patient.id }.toMutableList()
+        val id = ids.removeAt(from)
+        ids.add(to, id)
+        db.withTransaction {
+            (ids + discharged.map { it.patient.id }).forEachIndexed { index, pid ->
+                patientDao.setSortOrder(pid, index)
+            }
+        }
     }
 
     suspend fun recomputeAllEffects() = db.withTransaction {

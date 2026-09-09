@@ -68,7 +68,7 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
     var showTemplatePicker by remember { mutableStateOf(false) }
     val birthMaxDate = remember {
         Calendar.getInstance().apply {
-            add(Calendar.YEAR, -18)
+            add(Calendar.YEAR, -17)
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)

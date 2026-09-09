@@ -28,11 +28,7 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun reorder(from: Int, to: Int) = viewModelScope.launch {
-        val ids = documents.value.map { it.id }.toMutableList()
-        if (from !in ids.indices || to !in ids.indices) return@launch
-        val id = ids.removeAt(from)
-        ids.add(to, id)
-        repo.reorder(ids)
+        repo.reorder(from, to)
     }
 
     fun adjust(docId: Long, sign: Int) {
@@ -57,7 +53,7 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
         val origPos = others.indexOfFirst { it.id == doc.id }.coerceAtLeast(0)
         val ordered = others.toMutableList()
         ordered.add(origPos + 1, doc.copy(id = newId, name = copy.name, sortOrder = 0))
-        repo.reorder(ordered.map { it.id })
+        repo.assignOrders(ordered.map { it.id })
         return newId
     }
 }

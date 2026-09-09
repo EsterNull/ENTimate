@@ -62,13 +62,6 @@ class PatientsViewModel(application: Application) : AndroidViewModel(application
     fun deleteTemplate(t: PatientTemplateEntity) = viewModelScope.launch { repo.deleteTemplate(t) }
 
     fun reorder(from: Int, to: Int) = viewModelScope.launch {
-        val all = patients.value
-        val active = all.filter { it.patient.discharged != 1 }
-        val discharged = all.filter { it.patient.discharged == 1 }
-        if (from !in active.indices || to !in active.indices) return@launch
-        val ids = active.map { it.patient.id }.toMutableList()
-        val id = ids.removeAt(from)
-        ids.add(to, id)
-        repo.reorder(ids + discharged.map { it.patient.id })
+        repo.reorder(from, to)
     }
 }
