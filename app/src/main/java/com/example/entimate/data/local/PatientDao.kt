@@ -152,4 +152,31 @@ interface PatientDao {
 
     @Query("DELETE FROM patient_custom_values WHERE fieldId IN (SELECT id FROM patient_custom_fields WHERE folderId = :folderId)")
     suspend fun deleteValuesForFieldsInFolder(folderId: Long)
+
+    @Query("SELECT * FROM patient_templates WHERE folderId = :folderId ORDER BY createdAt DESC")
+    fun observeTemplates(folderId: Long): Flow<List<PatientTemplateEntity>>
+
+    @Query("SELECT * FROM patient_templates WHERE folderId = :folderId ORDER BY createdAt DESC")
+    suspend fun getAllTemplates(folderId: Long): List<PatientTemplateEntity>
+
+    @Query("SELECT * FROM patient_templates ORDER BY folderId ASC, createdAt DESC")
+    suspend fun getAllTemplates(): List<PatientTemplateEntity>
+
+    @Query("SELECT * FROM patient_templates WHERE id = :id")
+    suspend fun getTemplate(id: Long): PatientTemplateEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTemplate(t: PatientTemplateEntity): Long
+
+    @Update
+    suspend fun updateTemplate(t: PatientTemplateEntity)
+
+    @Delete
+    suspend fun deleteTemplate(t: PatientTemplateEntity)
+
+    @Query("DELETE FROM patient_templates WHERE folderId = :folderId")
+    suspend fun deleteTemplatesForFolder(folderId: Long)
+
+    @Query("DELETE FROM patient_templates")
+    suspend fun deleteAllTemplates()
 }

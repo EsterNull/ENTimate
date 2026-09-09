@@ -25,7 +25,7 @@ val PATIENT_FIELDS: List<PatientFieldDef> = listOf(
     PatientFieldDef("lastName", "Фамилия", "TEXT", true, true),
     PatientFieldDef("firstName", "Имя", "TEXT", true, true),
     PatientFieldDef("middleName", "Отчество", "TEXT", false, true),
-    PatientFieldDef("birthDate", "Дата рождения", "DATE", true, true),
+    PatientFieldDef("birthDate", "Дата рождения", "DATE", false, true),
     PatientFieldDef("sex", "Пол", "SWITCH", true, true),
     PatientFieldDef("idSeries", "Удостоверение личности: Серия", "TEXT", false, false),
     PatientFieldDef("idNumber", "Удостоверение личности: Номер", "TEXT", false, false),

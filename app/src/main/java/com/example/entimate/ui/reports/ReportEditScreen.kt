@@ -152,6 +152,9 @@ fun TableReportEditor(reportId: Long, nav: NavController, kind: String = "TABLE"
     var customFields by remember { mutableStateOf(listOf<PatientCustomFieldEntity>()) }
     var loaded by remember { mutableStateOf(reportId == 0L) }
     var reportFolder by remember { mutableStateOf(0L) }
+    var reportSortOrder by remember { mutableStateOf(0) }
+    var reportVersion by remember { mutableStateOf(CURRENT_DATA_VERSION) }
+    var reportExtras by remember { mutableStateOf("") }
     var showColumnPicker by remember { mutableStateOf(false) }
     var showFilterPicker by remember { mutableStateOf(false) }
     var editingColumn by remember { mutableStateOf(-1) }
@@ -174,6 +177,9 @@ fun TableReportEditor(reportId: Long, nav: NavController, kind: String = "TABLE"
                 filters.clear()
                 filters.addAll(r.filters.map { it.copy() })
                 reportFolder = r.report.folderId
+                reportSortOrder = r.report.sortOrder
+                reportVersion = r.report.version
+                reportExtras = r.report.extras
                 customFields = repo.patientCustomFields(r.report.folderId)
             }
             loaded = true
@@ -189,7 +195,7 @@ fun TableReportEditor(reportId: Long, nav: NavController, kind: String = "TABLE"
             val dup = repo.getAllReports(folder).any { it.id != reportId && it.name.equals(name.trim(), ignoreCase = true) }
             if (dup) { nameError = true; return@launch }
             val id = repo.saveReport(
-                ReportEntity(id = reportId, name = name.trim(), description = description.trim(), colorArgb = color, folderId = reportFolder, kind = if (isSummary) "SUMMARY" else "DOCUMENTS"),
+                ReportEntity(id = reportId, name = name.trim(), description = description.trim(), colorArgb = color, folderId = reportFolder, kind = if (isSummary) "SUMMARY" else "DOCUMENTS", sortOrder = reportSortOrder, version = reportVersion, extras = reportExtras),
                 columns = columns.mapIndexed { i, c -> c.copy(position = i) },
                 filters = filters.mapIndexed { i, f -> f.copy(position = i) },
             )

@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -160,9 +159,6 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
                         IconButton(onClick = { tutorial?.start() }) {
                             Icon(Icons.Filled.Help, contentDescription = "Обучение")
                         }
-                        IconButton(onClick = { nav.navigate("reports/edit/0") }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Добавить отчёт")
-                        }
                         IconButton(onClick = { reordering = true }) {
                             Icon(Icons.Filled.DragHandle, contentDescription = "Изменить порядок")
                         }
@@ -180,7 +176,7 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
-                ) { Text("Нет отчётов.\nНажмите + чтобы создать.", textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                ) { Text("Нет отчётов.\nНажмите «+», чтобы создать.", textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -255,6 +251,7 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
             CurrentFolderBar(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 onOpenFolders = { nav.navigate("folders") },
+                onAdd = { nav.navigate("reports/edit/0") },
             )
         }
     }

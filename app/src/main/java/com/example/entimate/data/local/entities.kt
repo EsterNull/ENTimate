@@ -192,6 +192,18 @@ data class PatientDocumentEffectEntity(
     val netDelta: Int,
 )
 
+@Entity(
+    tableName = "patient_templates",
+    indices = [Index(value = ["folderId"])],
+)
+data class PatientTemplateEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    @ColumnInfo(defaultValue = "1") val folderId: Long = 1,
+    val payload: String,
+    val createdAt: Long = 0L,
+)
+
 data class PatientWithValues(
     @Embedded val patient: PatientEntity,
     @Relation(parentColumn = "id", entityColumn = "patientId") val customValues: List<PatientCustomValueEntity> = emptyList(),

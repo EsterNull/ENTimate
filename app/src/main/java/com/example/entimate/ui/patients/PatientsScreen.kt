@@ -8,7 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -177,8 +177,8 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                         IconButton(onClick = { nav.navigate("patients/links") }) {
                             Icon(Icons.Filled.Settings, contentDescription = "Настройки связей с документами")
                         }
-                        IconButton(onClick = { nav.navigate("patients/edit/0") }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Добавить пациента")
+                        IconButton(onClick = { nav.navigate("patienttemplates") }) {
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = "Шаблоны пациентов")
                         }
                         IconButton(onClick = { reordering = true }) {
                             Icon(Icons.Filled.DragHandle, contentDescription = "Изменить порядок")
@@ -198,7 +198,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Нет пациентов.\nНажмите + вверху, чтобы добавить.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text("Нет пациентов.\nНажмите «+», чтобы добавить.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             } else {
                 LazyColumn(
@@ -267,6 +267,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
             CurrentFolderBar(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 onOpenFolders = { nav.navigate("folders") },
+                onAdd = { nav.navigate("patients/edit/0") },
             )
         }
     }

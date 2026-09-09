@@ -40,6 +40,10 @@ class PatientRepository(
         folderRepo.currentFolderIdFlow.flatMapLatest { fid ->
             patientDao.observeLinksForFolder(fid)
         }
+    val templatesFlow: Flow<List<PatientTemplateEntity>> =
+        folderRepo.currentFolderIdFlow.flatMapLatest { fid ->
+            patientDao.observeTemplates(fid)
+        }
 
     suspend fun getAllDocuments() = documentDao.getAll(folderRepo.currentFolderId()).map { it.migrate() }
     suspend fun getAllLinks() = patientDao.getAllLinksForFolder(folderRepo.currentFolderId())
@@ -121,6 +125,41 @@ class PatientRepository(
         recomputeAllEffects()
         id
     }
+
+    suspend fun saveTemplate(name: String, payload: PatientTemplatePayload): Long =
+        patientDao.insertTemplate(
+            PatientTemplateEntity(
+                name = name,
+                folderId = folderRepo.currentFolderId(),
+                payload = encodePatientTemplatePayload(payload),
+                createdAt = System.currentTimeMillis(),
+            )
+        )
+
+    suspend fun updateTemplate(id: Long, name: String, payload: PatientTemplatePayload) {
+        val existing = patientDao.getTemplate(id) ?: return
+        patientDao.updateTemplate(
+            existing.copy(
+                name = name,
+                payload = encodePatientTemplatePayload(payload),
+            )
+        )
+    }
+
+    suspend fun renameTemplate(t: PatientTemplateEntity, newName: String) =
+        patientDao.updateTemplate(t.copy(name = newName))
+
+    suspend fun duplicateTemplate(t: PatientTemplateEntity): Long =
+        patientDao.insertTemplate(
+            t.copy(id = 0, folderId = folderRepo.currentFolderId(), createdAt = System.currentTimeMillis())
+        )
+
+    suspend fun deleteTemplate(t: PatientTemplateEntity) = patientDao.deleteTemplate(t)
+
+    suspend fun templatePayload(id: Long): PatientTemplatePayload? =
+        patientDao.getTemplate(id)?.let { decodePatientTemplatePayload(it.payload) }
+
+    suspend fun getAllTemplates() = patientDao.getAllTemplates()
 
     suspend fun deleteLink(link: PatientFieldLinkEntity) = db.withTransaction {
         patientDao.deleteLink(link)

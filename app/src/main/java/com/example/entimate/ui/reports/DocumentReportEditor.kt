@@ -67,6 +67,7 @@ import com.example.entimate.data.local.manualTableToJson
 import com.example.entimate.data.local.ReportDocElementEntity
 import com.example.entimate.data.local.ReportEntity
 import com.example.entimate.data.local.ReportParagraphEntity
+import com.example.entimate.data.local.CURRENT_DATA_VERSION
 import com.example.entimate.ui.components.ColorPickerDialog
 import com.example.entimate.ui.components.ColorRow
 import com.example.entimate.ui.components.colorLuminance
@@ -151,6 +152,9 @@ fun DocumentReportEditor(reportId: Long, nav: NavController, vm: ReportsViewMode
     var marginLeftMm by remember { mutableStateOf(25.4f) }
     var nameError by remember { mutableStateOf(false) }
     var reportFolder by remember { mutableStateOf(0L) }
+    var reportSortOrder by remember { mutableStateOf(0) }
+    var reportVersion by remember { mutableStateOf(CURRENT_DATA_VERSION) }
+    var reportExtras by remember { mutableStateOf("") }
     val paragraphs = remember { mutableStateListOf<ParagraphDraft>() }
     var loaded by remember { mutableStateOf(reportId == 0L) }
     var tableReports by remember { mutableStateOf(listOf<ReportEntity>()) }
@@ -169,6 +173,9 @@ fun DocumentReportEditor(reportId: Long, nav: NavController, vm: ReportsViewMode
             if (d != null) {
                 tableReports = vm.tableReports(d.report.folderId)
                 reportFolder = d.report.folderId
+                reportSortOrder = d.report.sortOrder
+                reportVersion = d.report.version
+                reportExtras = d.report.extras
                 name = d.report.name
                 description = d.report.description
                 color = d.report.colorArgb
@@ -251,6 +258,7 @@ fun DocumentReportEditor(reportId: Long, nav: NavController, vm: ReportsViewMode
                 ReportEntity(
                     id = reportId, name = name.trim(), description = description.trim(), kind = "DOCUMENT", colorArgb = color,
                     folderId = reportFolder,
+                    sortOrder = reportSortOrder, version = reportVersion, extras = reportExtras,
                     marginTopMm = marginTopMm, marginRightMm = marginRightMm, marginBottomMm = marginBottomMm, marginLeftMm = marginLeftMm,
                 ),
                 blocks,

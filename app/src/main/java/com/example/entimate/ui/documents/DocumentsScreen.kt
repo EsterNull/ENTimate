@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -101,12 +100,6 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                             Icon(Icons.Filled.Help, contentDescription = "Обучение")
                         }
                         IconButton(
-                            onClick = { nav.navigate("documents/edit/0") },
-                            modifier = Modifier.tutorialAnchor("doc_add"),
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = "Добавить документ")
-                        }
-                        IconButton(
                             onClick = { reordering = true },
                             modifier = Modifier.tutorialAnchor("doc_reorder"),
                         ) {
@@ -128,7 +121,7 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "Нет документов.\nНажмите + вверху, чтобы создать.",
+                        "Нет документов.\nНажмите «+», чтобы создать.",
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
                 }
@@ -211,6 +204,8 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
             CurrentFolderBar(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 onOpenFolders = { nav.navigate("folders") },
+                onAdd = { nav.navigate("documents/edit/0") },
+                addTutorialAnchor = "doc_add",
             )
         }
     }

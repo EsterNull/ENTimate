@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
@@ -47,12 +48,14 @@ private val COLLAPSED_BY_DEFAULT = setOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel = viewModel()) {
+fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController, vm: PatientsViewModel = viewModel()) {
     val app = LocalContext.current.applicationContext as EntimateApplication
     val repo = app.patientRepository
     val scope = rememberCoroutineScope()
     val customFields by vm.customFields.collectAsStateWithLifecycle()
     val documents by vm.documents.collectAsStateWithLifecycle()
+    val templates by vm.templates.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var loaded by remember { mutableStateOf(patientId == 0L) }
     val values = remember { mutableStateMapOf<String, String>() }
@@ -62,6 +65,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
     var createdAt by remember { mutableStateOf(0L) }
     var existingId by remember { mutableStateOf(0L) }
     var existingPatient by remember { mutableStateOf<PatientEntity?>(null) }
+    var showTemplatePicker by remember { mutableStateOf(false) }
     val birthMaxDate = remember {
         Calendar.getInstance().apply {
             add(Calendar.YEAR, -18)
@@ -129,6 +133,30 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
         }
     }
 
+    fun applyTemplatePayload(payload: PatientTemplatePayload, fields: List<PatientCustomFieldEntity>) {
+        payload.builtins.forEach { (k, v) -> values[k] = v }
+        val missing = mutableListOf<String>()
+        payload.custom.forEach { (label, v) ->
+            val target = fields.firstOrNull { it.label.trim() == label.trim() }
+            if (target != null) {
+                customValues[target.id] = v
+            } else {
+                missing.add(label)
+            }
+        }
+        if (missing.isNotEmpty()) {
+            scope.launch { snackbarHostState.showSnackbar("Не применено: ${missing.joinToString(", ")}") }
+        }
+    }
+
+    LaunchedEffect(customFields, templateId, loaded) {
+        if (patientId == 0L && templateId != 0L && loaded && customFields.isNotEmpty()) {
+            repo.templatePayload(templateId)?.let { payload ->
+                applyTemplatePayload(payload, customFields)
+            }
+        }
+    }
+
     fun save() {
         val missing = PATIENT_FIELDS.filter { it.required && (values[it.key]?.isBlank() != false) }
         if (missing.isNotEmpty()) { showErrors = true; return }
@@ -171,6 +199,7 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(if (patientId == 0L) "Новый пациент" else "Редактировать пациента") },
@@ -178,6 +207,11 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
                     IconButton(onClick = { nav.navigateBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
                 },
                 actions = {
+                    if (patientId == 0L && templates.isNotEmpty()) {
+                        IconButton(onClick = { showTemplatePicker = true }) {
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = "Применить шаблон")
+                        }
+                    }
                     IconButton(onClick = { save() }) { Icon(Icons.Filled.Check, contentDescription = "Сохранить") }
                 },
             )
@@ -229,9 +263,35 @@ fun PatientEditScreen(patientId: Long, nav: NavController, vm: PatientsViewModel
             }
         }
     }
+
+    if (showTemplatePicker) {
+        AlertDialog(
+            onDismissRequest = { showTemplatePicker = false },
+            title = { Text("Применить шаблон") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    templates.forEach { t ->
+                        TextButton(
+                            onClick = {
+                                showTemplatePicker = false
+                                scope.launch {
+                                    repo.templatePayload(t.id)?.let { payload ->
+                                        applyTemplatePayload(payload, customFields)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(t.name, style = MaterialTheme.typography.bodyMedium) }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showTemplatePicker = false }) { Text("Отмена") } },
+        )
+    }
 }
 
-private fun fieldOptions(def: PatientFieldDef): List<String> = when (def.key) {
+fun fieldOptions(def: PatientFieldDef): List<String> = when (def.key) {
     "sex" -> listOf("М", "Ж")
     "emergency" -> listOf("Да", "Нет")
     else -> def.options.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -239,7 +299,7 @@ private fun fieldOptions(def: PatientFieldDef): List<String> = when (def.key) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValueChange: (String) -> Unit, maxBirthDate: Long? = null, minDate: Long? = null, isLast: Boolean = false) {
+fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValueChange: (String) -> Unit, maxBirthDate: Long? = null, minDate: Long? = null, isLast: Boolean = false) {
     val required = def.required
     val error = showErrors && required && value.isBlank()
     val focusManager = LocalFocusManager.current
@@ -328,7 +388,7 @@ private fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onValueChange: (String) -> Unit, documents: List<DocumentEntity> = emptyList(), onDelete: (() -> Unit)? = null, isLast: Boolean = false) {
+fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onValueChange: (String) -> Unit, documents: List<DocumentEntity> = emptyList(), onDelete: (() -> Unit)? = null, isLast: Boolean = false) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

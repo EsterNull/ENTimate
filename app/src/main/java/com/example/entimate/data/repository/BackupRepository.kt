@@ -29,11 +29,12 @@ class BackupRepository(
         val customFields = db.patientDao().getAllCustomFields()
         val customValues = db.patientDao().getAllCustomValues()
         val patientLinks = db.patientDao().getAllLinks()
+        val templates = db.patientDao().getAllTemplates()
         val changes = db.documentDao().getAllChanges()
         val effects = db.patientDao().getAllEffects()
 
         val root = JSONObject()
-        root.put("version", 4)
+        root.put("version", 5)
         root.put("folders", JSONArray(folders.map {
             JSONObject().apply {
                 put("id", it.id)
@@ -251,6 +252,15 @@ class BackupRepository(
                 put("folderId", it.folderId)
             }
         }))
+        root.put("patientTemplates", JSONArray(templates.map {
+            JSONObject().apply {
+                put("id", it.id)
+                put("name", it.name)
+                put("folderId", it.folderId)
+                put("payload", it.payload)
+                put("createdAt", it.createdAt)
+            }
+        }))
         root.put("documentChanges", JSONArray(changes.map {
             JSONObject().apply {
                 put("id", it.id)
@@ -294,6 +304,7 @@ class BackupRepository(
         if (hasParagraphs) db.reportDao().deleteAllParagraphs()
         if (hasElements) db.reportDao().deleteAllElements()
         db.patientDao().clearEffects()
+        db.patientDao().deleteAllTemplates()
         db.documentDao().deleteAllChanges()
         db.folderDao().deleteAll()
 
@@ -607,6 +618,21 @@ class BackupRepository(
                         operation = o.optString("operation", "DECREASE"),
                         amount = o.optInt("amount", 0),
                         folderId = o.optLong("folderId", 1),
+                    )
+                )
+            }
+        }
+        val templates = root.optJSONArray("patientTemplates")
+        if (templates != null) {
+            for (i in 0 until templates.length()) {
+                val o = templates.getJSONObject(i)
+                db.patientDao().insertTemplate(
+                    PatientTemplateEntity(
+                        id = o.optLong("id", 0),
+                        name = o.optString("name", "Шаблон"),
+                        folderId = o.optLong("folderId", 1),
+                        payload = o.optString("payload", ""),
+                        createdAt = o.optLong("createdAt", 0L),
                     )
                 )
             }

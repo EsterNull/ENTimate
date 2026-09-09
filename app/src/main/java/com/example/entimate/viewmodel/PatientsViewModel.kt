@@ -27,6 +27,10 @@ class PatientsViewModel(application: Application) : AndroidViewModel(application
         .catch { emit(emptyList<PatientFieldLinkEntity>()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val templates: StateFlow<List<PatientTemplateEntity>> = repo.templatesFlow
+        .catch { emit(emptyList<PatientTemplateEntity>()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val effectEvents: Flow<String> = repo.effectLog
 
     suspend fun getPatient(id: Long) = repo.getPatient(id)
@@ -46,6 +50,16 @@ class PatientsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveLink(link: PatientFieldLinkEntity) = viewModelScope.launch { repo.saveLink(link) }
     fun deleteLink(link: PatientFieldLinkEntity) = viewModelScope.launch { repo.deleteLink(link) }
+
+    fun saveTemplate(name: String, payload: PatientTemplatePayload) =
+        viewModelScope.launch { repo.saveTemplate(name, payload) }
+
+    fun updateTemplate(id: Long, name: String, payload: PatientTemplatePayload) =
+        viewModelScope.launch { repo.updateTemplate(id, name, payload) }
+
+    fun duplicateTemplate(t: PatientTemplateEntity) = viewModelScope.launch { repo.duplicateTemplate(t) }
+
+    fun deleteTemplate(t: PatientTemplateEntity) = viewModelScope.launch { repo.deleteTemplate(t) }
 
     fun reorder(from: Int, to: Int) = viewModelScope.launch {
         val all = patients.value

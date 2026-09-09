@@ -3,6 +3,7 @@ package com.example.entimate.ui.patients
 import com.example.entimate.ui.navigation.navigateBack
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -31,7 +32,7 @@ import kotlinx.coroutines.launch
 
 private val TYPE_LABELS = mapOf("TEXT" to "Текст", "NUMBER" to "Число", "DATE" to "Дата", "DROPDOWN" to "Список", "CHECKBOX" to "Чекбокс", "DOCUMENT" to "Документ")
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun CustomFieldsScreen(nav: NavController) {
     val context = LocalContext.current
@@ -66,8 +67,10 @@ fun CustomFieldsScreen(nav: NavController) {
                         IconButton(onClick = { reordering = true }) {
                             Icon(Icons.Filled.DragHandle, contentDescription = "Изменить порядок")
                         }
+                        IconButton(onClick = { editing = null; showDialog = true }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Добавить поле")
+                        }
                     }
-                    IconButton(onClick = { editing = null; showDialog = true }) { Icon(Icons.Filled.Add, contentDescription = "Добавить поле") }
                 },
             )
         },
@@ -86,7 +89,10 @@ fun CustomFieldsScreen(nav: NavController) {
                 LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp)) {
                     if (reordering) {
                         itemsIndexed(fields, key = { _, cf -> cf.id }) { index, cf ->
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).animateItem(),
+                            ) {
                                 Column {
                                     IconButton(
                                         onClick = { if (index > 0) reorderFields(index, index - 1) },

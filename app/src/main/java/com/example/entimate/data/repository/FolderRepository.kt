@@ -102,6 +102,7 @@ class FolderRepository(
             patientDao.deleteValuesForFieldsInFolder(id)
             patientDao.deleteCustomFieldsForFolder(id)
             patientDao.deleteLinksForFolder(id)
+            patientDao.deleteTemplatesForFolder(id)
             documentDao.deleteForFolder(id)
             patientDao.deleteForFolder(id)
             reportDao.deleteForFolder(id)
@@ -159,6 +160,10 @@ class FolderRepository(
 
         patientDao.getAllLinks().filter { docMap.containsKey(it.documentId) }.forEach { link ->
             patientDao.insertLink(link.copy(id = 0, documentId = docMap.getValue(link.documentId), folderId = newId))
+        }
+
+        patientDao.getAllTemplates(id).forEach { t ->
+            patientDao.insertTemplate(t.copy(id = 0, folderId = newId))
         }
 
         val reportMap = reportDao.getForFolder(id).associate { old ->

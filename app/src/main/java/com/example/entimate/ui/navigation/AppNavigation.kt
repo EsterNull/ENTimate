@@ -14,7 +14,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
+import androidx.navigation.NavType
 import androidx.navigation.compose.*
+import androidx.navigation.navArgument
 import com.example.entimate.EntimateApplication
 import kotlinx.coroutines.flow.first
 import com.example.entimate.settings.SettingsDataStore
@@ -26,6 +28,8 @@ import com.example.entimate.ui.patients.PatientsScreen
 import com.example.entimate.ui.patients.PatientEditScreen
 import com.example.entimate.ui.patients.PatientLinksScreen
 import com.example.entimate.ui.patients.CustomFieldsScreen
+import com.example.entimate.ui.patients.TemplatesScreen
+import com.example.entimate.ui.patients.TemplateEditScreen
 import com.example.entimate.ui.reports.ReportsScreen
 import com.example.entimate.ui.reports.ReportPreviewScreen
 import com.example.entimate.ui.reports.ReportEditScreen
@@ -184,12 +188,23 @@ fun AppNavigation() {
                         val id = back.arguments?.getString("docId")?.toLongOrNull() ?: 0L
                         DocumentStatsScreen(nav = nav, docId = id)
                     }
-                    composable("patients/edit/{patientId}") { back ->
-                        val id = back.arguments?.getString("patientId")?.toLongOrNull() ?: 0L
-                        PatientEditScreen(patientId = id, nav = nav)
+                    composable("patients/edit/{patientId}?templateId={templateId}", arguments = listOf(
+                        navArgument("patientId") { type = NavType.LongType },
+                        navArgument("templateId") { type = NavType.LongType; defaultValue = 0L },
+                    )) { back ->
+                        val id = back.arguments?.getLong("patientId") ?: 0L
+                        val templateId = back.arguments?.getLong("templateId") ?: 0L
+                        PatientEditScreen(patientId = id, templateId = templateId, nav = nav)
                     }
                     composable("patients/links") { PatientLinksScreen(nav = nav) }
                     composable("customfields") { CustomFieldsScreen(nav = nav) }
+                    composable("patienttemplates") { TemplatesScreen(nav = nav) }
+                    composable(
+                        "templates/edit/{templateId}",
+                        arguments = listOf(navArgument("templateId") { type = NavType.LongType; defaultValue = 0L }),
+                    ) { entry ->
+                        TemplateEditScreen(nav = nav, templateId = entry.arguments?.getLong("templateId") ?: 0L)
+                    }
                     composable("reports/edit/{reportId}") { back ->
                         val id = back.arguments?.getString("reportId")?.toLongOrNull() ?: 0L
                         ReportEditScreen(reportId = id, nav = nav)
