@@ -8,7 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -178,7 +178,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                             Icon(Icons.Filled.Settings, contentDescription = "Настройки связей с документами")
                         }
                         IconButton(onClick = { nav.navigate("patienttemplates") }) {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = "Шаблоны пациентов")
+                            Icon(Icons.Filled.Layers, contentDescription = "Шаблоны пациентов")
                         }
                         IconButton(onClick = { reordering = true }) {
                             Icon(Icons.Filled.DragHandle, contentDescription = "Изменить порядок")

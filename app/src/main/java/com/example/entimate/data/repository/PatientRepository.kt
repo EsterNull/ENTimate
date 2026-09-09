@@ -182,7 +182,11 @@ class PatientRepository(
         for (p in all) {
             patientDao.deleteEffects(p.patient.id)
             val links = folderLinksFor(p.patient)
-            val cvMap = p.customValues.associate { it.fieldId to it.value }
+            val cvMap = resolveComputedValues(
+                patientDao.getAllCustomFields(p.patient.folderId),
+                p.customValues.associate { it.fieldId to it.value },
+                p.patient.number.toString(),
+            )
             val docIds = links.map { it.documentId }.toSet()
             for (docId in docIds) {
                 val net = links.filter { it.documentId == docId }.sumOf { link -> effectFor(link, p.patient, cvMap) }
@@ -220,7 +224,11 @@ class PatientRepository(
      */
     private suspend fun syncEffects(patientId: Long, recordStats: Boolean = false) {
         val p = patientDao.getWithValues(patientId) ?: return
-        val cvMap = p.customValues.associate { it.fieldId to it.value }
+        val cvMap = resolveComputedValues(
+            patientDao.getAllCustomFields(p.patient.folderId),
+            p.customValues.associate { it.fieldId to it.value },
+            p.patient.number.toString(),
+        )
         val links = folderLinksFor(p.patient)
         val newNets = netsFor(links, p.patient, cvMap)
         val oldEffects = patientDao.getEffects(patientId).associate { it.documentId to it.netDelta }
@@ -257,7 +265,13 @@ class PatientRepository(
     }
 
     private fun effectFor(link: PatientFieldLinkEntity, p: PatientEntity, cvMap: Map<Long, String>): Int {
-        val sign = if (link.operation == "INCREASE") link.amount else -link.amount
+        val amount = if (link.amountFieldKey.isBlank()) {
+            link.amount
+        } else {
+            valueFor(p, cvMap, link.amountFieldKey).trim().replace(',', '.').toDoubleOrNull()?.toInt() ?: 0
+        }
+        if (amount <= 0) return 0
+        val sign = if (link.operation == "INCREASE") amount else -amount
         return when {
             link.sourceKey == PATIENT_GLOBAL_KEY -> sign
             link.conditionValue.isBlank() -> sign

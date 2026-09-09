@@ -42,6 +42,11 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
     fun linksFor(key: String) = allLinks.filter { it.sourceKey == key }
     val globalLinks = allLinks.filter { it.sourceKey == PATIENT_GLOBAL_KEY }
     val docNameById = documents.associate { it.id to it.name }
+    val numberFields = buildList {
+        add("Номер пациента" to "number")
+        customFields.filter { it.type == "NUMBER" || it.type == COMPUTED_TYPE }.forEach { add(it.label to "custom:${it.id}") }
+    }
+    val fieldKeyName = mapOf("number" to "Номер пациента") + customFields.associate { "custom:${it.id}" to it.label }
 
     Scaffold(
         topBar = {
@@ -67,6 +72,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
                     title = def.label,
                     links = linksFor(key),
                     documentName = { docNameById[it] ?: "#$it" },
+                    amountFieldName = { fieldKeyName[it] },
                     onAdd = { showDialogFor = def },
                     onDelete = { link -> scope.launch { repo.deleteLink(link) } },
                 )
@@ -78,6 +84,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
                     title = cf.label + " (своё поле)",
                     links = linksFor(key),
                     documentName = { docNameById[it] ?: "#$it" },
+                    amountFieldName = { fieldKeyName[it] },
                     onAdd = { showDialogCustom = cf },
                     onDelete = { link -> scope.launch { repo.deleteLink(link) } },
                 )
@@ -98,6 +105,7 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
                 title = "При добавлении пациента",
                 links = globalLinks,
                 documentName = { docNameById[it] ?: "#$it" },
+                amountFieldName = { fieldKeyName[it] },
                 onAdd = { showGlobalDialog = true },
                 onDelete = { link -> scope.launch { repo.deleteLink(link) } },
             )
@@ -109,10 +117,11 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
         AddLinkDialog(
             documents = documents,
             conditionOptions = fieldLinkOptions(def),
+            numberFields = numberFields,
             defaultCondition = "",
             onDismiss = { showDialogFor = null },
-            onConfirm = { docId, operation, amount, cond ->
-                val link = PatientFieldLinkEntity(sourceKey = def.key, conditionValue = cond, documentId = docId, operation = operation, amount = amount)
+            onConfirm = { docId, operation, amount, cond, amountFieldKey ->
+                val link = PatientFieldLinkEntity(sourceKey = def.key, conditionValue = cond, documentId = docId, operation = operation, amount = amount, amountFieldKey = amountFieldKey)
                 showDialogFor = null
                 scope.launch { repo.saveLink(link) }
             },
@@ -121,14 +130,23 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
 
     if (showDialogCustom != null) {
         val cf = showDialogCustom!!
-        val opts = cf.options.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        val opts = if (cf.type == "DOCUMENT") {
+            documents.map { it.name }
+        } else {
+            cf.options.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        }
         AddLinkDialog(
             documents = documents,
             conditionOptions = opts,
-            defaultCondition = if (cf.type == "CHECKBOX") "true" else opts.firstOrNull() ?: "",
+            numberFields = numberFields,
+            defaultCondition = when {
+                cf.type == "CHECKBOX" -> "true"
+                cf.type == "DOCUMENT" -> documents.firstOrNull()?.name ?: ""
+                else -> opts.firstOrNull() ?: ""
+            },
             onDismiss = { showDialogCustom = null },
-            onConfirm = { docId, operation, amount, cond ->
-                val link = PatientFieldLinkEntity(sourceKey = "custom:${cf.id}", conditionValue = cond, documentId = docId, operation = operation, amount = amount)
+            onConfirm = { docId, operation, amount, cond, amountFieldKey ->
+                val link = PatientFieldLinkEntity(sourceKey = "custom:${cf.id}", conditionValue = cond, documentId = docId, operation = operation, amount = amount, amountFieldKey = amountFieldKey)
                 showDialogCustom = null
                 scope.launch { repo.saveLink(link) }
             },
@@ -139,11 +157,12 @@ fun PatientLinksScreen(nav: NavController, vm: PatientsViewModel = viewModel()) 
         AddLinkDialog(
             documents = documents,
             conditionOptions = emptyList(),
+            numberFields = numberFields,
             defaultCondition = "",
             showCondition = false,
             onDismiss = { showGlobalDialog = false },
-            onConfirm = { docId, operation, amount, _ ->
-                val link = PatientFieldLinkEntity(sourceKey = PATIENT_GLOBAL_KEY, conditionValue = "", documentId = docId, operation = operation, amount = amount)
+            onConfirm = { docId, operation, amount, _, amountFieldKey ->
+                val link = PatientFieldLinkEntity(sourceKey = PATIENT_GLOBAL_KEY, conditionValue = "", documentId = docId, operation = operation, amount = amount, amountFieldKey = amountFieldKey)
                 showGlobalDialog = false
                 scope.launch { repo.saveLink(link) }
             },
@@ -162,6 +181,7 @@ private fun LinkCard(
     title: String,
     links: List<PatientFieldLinkEntity>,
     documentName: (Long) -> String,
+    amountFieldName: (String) -> String?,
     onAdd: () -> Unit,
     onDelete: (PatientFieldLinkEntity) -> Unit,
 ) {
@@ -180,8 +200,14 @@ private fun LinkCard(
                         Text(
                             buildString {
                                 append("Документ «${documentName(link.documentId)}»: ")
-                                append(if (link.operation == "INCREASE") "+" else "−")
-                                append(link.amount)
+                                val fieldName = amountFieldName(link.amountFieldKey)
+                                if (fieldName != null) {
+                                    append(if (link.operation == "INCREASE") "+" else "−")
+                                    append(" (из поля «$fieldName»)")
+                                } else {
+                                    append(if (link.operation == "INCREASE") "+" else "−")
+                                    append(link.amount)
+                                }
                                 if (link.conditionValue.isNotBlank()) append(" (если значение = ${link.conditionValue})")
                             },
                             style = MaterialTheme.typography.bodySmall,
@@ -200,16 +226,23 @@ private fun LinkCard(
 private fun AddLinkDialog(
     documents: List<DocumentEntity>,
     conditionOptions: List<String>,
+    numberFields: List<Pair<String, String>>,
     defaultCondition: String,
     showCondition: Boolean = true,
     onDismiss: () -> Unit,
-    onConfirm: (docId: Long, operation: String, amount: Int, conditionValue: String) -> Unit,
+    onConfirm: (docId: Long, operation: String, amount: Int, conditionValue: String, amountFieldKey: String) -> Unit,
 ) {
     var docId by remember { mutableStateOf(documents.firstOrNull()?.id ?: 0L) }
     var docExpanded by remember { mutableStateOf(false) }
     var operation by remember { mutableStateOf("INCREASE") }
     var opExpanded by remember { mutableStateOf(false) }
     var amount by remember { mutableStateOf("1") }
+    var byField by remember {
+        mutableStateOf(false)
+    }
+    var amountField by remember { mutableStateOf("") }
+    var amountTypeExpanded by remember { mutableStateOf(false) }
+    var amountFieldExpanded by remember { mutableStateOf(false) }
     var condition by remember { mutableStateOf(defaultCondition) }
     var condExpanded by remember { mutableStateOf(false) }
 
@@ -239,8 +272,44 @@ private fun AddLinkDialog(
                         DropdownMenuItem(text = { Text("Уменьшить") }, onClick = { operation = "DECREASE"; opExpanded = false })
                     }
                 }
-                OutlinedTextField(value = amount, onValueChange = { amount = it.stripNewlines() }, label = { Text("На сколько") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                ExposedDropdownMenuBox(expanded = amountTypeExpanded, onExpandedChange = { amountTypeExpanded = it }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = if (byField) "Из поля" else "Фиксированная",
+                        onValueChange = {}, readOnly = true, label = { Text("Величина") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(amountTypeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(expanded = amountTypeExpanded, onDismissRequest = { amountTypeExpanded = false }) {
+                        DropdownMenuItem(text = { Text("Фиксированная") }, onClick = { byField = false; amountTypeExpanded = false })
+                        DropdownMenuItem(
+                            enabled = numberFields.isNotEmpty(),
+                            text = { Text(if (numberFields.isEmpty()) "Из поля (нет числовых полей)" else "Из поля") },
+                            onClick = {
+                                byField = true
+                                if (amountField.isBlank() || numberFields.none { it.second == amountField }) {
+                                    amountField = numberFields.firstOrNull()?.second ?: ""
+                                }
+                                amountTypeExpanded = false
+                            },
+                        )
+                    }
+                }
+                if (byField) {
+                    ExposedDropdownMenuBox(expanded = amountFieldExpanded, onExpandedChange = { amountFieldExpanded = it }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = numberFields.firstOrNull { it.second == amountField }?.first ?: "Поле",
+                            onValueChange = {}, readOnly = true, label = { Text("Поле количества") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(amountFieldExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(expanded = amountFieldExpanded, onDismissRequest = { amountFieldExpanded = false }) {
+                            numberFields.forEach { (label, key) ->
+                                DropdownMenuItem(text = { Text(label) }, onClick = { amountField = key; amountFieldExpanded = false })
+                            }
+                        }
+                    }
+                } else {
+                    OutlinedTextField(value = amount, onValueChange = { amount = it.stripNewlines() }, label = { Text("На сколько") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                }
                 if (showCondition) {
                     if (conditionOptions.isNotEmpty()) {
                         ExposedDropdownMenuBox(expanded = condExpanded, onExpandedChange = { condExpanded = it }, modifier = Modifier.fillMaxWidth()) {
@@ -261,7 +330,8 @@ private fun AddLinkDialog(
         confirmButton = {
             TextButton(onClick = {
                 val amt = amount.toIntOrNull() ?: 0
-                if (docId != 0L && amt > 0) onConfirm(docId, operation, amt, if (showCondition) condition else "")
+                val valid = docId != 0L && (if (byField) amountField.isNotBlank() else amt > 0)
+                if (valid) onConfirm(docId, operation, amt, if (showCondition) condition else "", if (byField) amountField else "")
             }) { Text("Добавить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },

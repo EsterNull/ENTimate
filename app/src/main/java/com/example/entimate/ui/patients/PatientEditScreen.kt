@@ -4,11 +4,12 @@ import com.example.entimate.ui.navigation.navigateBack
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
@@ -16,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -209,7 +209,7 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
                 actions = {
                     if (patientId == 0L && templates.isNotEmpty()) {
                         IconButton(onClick = { showTemplatePicker = true }) {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = "Применить шаблон")
+                            Icon(Icons.Filled.Layers, contentDescription = "Применить шаблон")
                         }
                     }
                     IconButton(onClick = { save() }) { Icon(Icons.Filled.Check, contentDescription = "Сохранить") }
@@ -257,7 +257,16 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
                 Text("Пользовательские поля", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 customFields.forEach { cf ->
-                    CustomFieldEditor(cf, customValues[cf.id] ?: "", onValueChange = { customValues[cf.id] = it }, documents = documents, isLast = "custom:${cf.id}" == lastFieldKey)
+                    CustomFieldEditor(
+                        cf,
+                        customValues[cf.id] ?: "",
+                        onValueChange = { customValues[cf.id] = it },
+                        documents = documents,
+                        isLast = "custom:${cf.id}" == lastFieldKey,
+                        customFields = customFields,
+                        customValues = customValues,
+                        patientNumber = values["number"] ?: "",
+                    )
                     Spacer(Modifier.height(10.dp))
                 }
             }
@@ -271,7 +280,7 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     templates.forEach { t ->
-                        TextButton(
+                        OutlinedButton(
                             onClick = {
                                 showTemplatePicker = false
                                 scope.launch {
@@ -388,7 +397,17 @@ fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValu
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onValueChange: (String) -> Unit, documents: List<DocumentEntity> = emptyList(), onDelete: (() -> Unit)? = null, isLast: Boolean = false) {
+fun CustomFieldEditor(
+    cf: PatientCustomFieldEntity,
+    value: String,
+    onValueChange: (String) -> Unit,
+    documents: List<DocumentEntity> = emptyList(),
+    onDelete: (() -> Unit)? = null,
+    isLast: Boolean = false,
+    customFields: List<PatientCustomFieldEntity> = emptyList(),
+    customValues: Map<Long, String> = emptyMap(),
+    patientNumber: String = "",
+) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -439,8 +458,29 @@ fun CustomFieldEditor(cf: PatientCustomFieldEntity, value: String, onValueChange
                     Checkbox(checked = value == "true", onCheckedChange = { onValueChange(if (it) "true" else "false") })
                     Spacer(Modifier.width(8.dp)); Text("Да")
                 }
+                COMPUTED_TYPE -> ComputedFieldResult(
+                    formula = cf.formula,
+                    customFields = customFields,
+                    customValues = customValues,
+                    patientNumber = patientNumber,
+                )
                 else -> OutlinedTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = { Text("Значение") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions, keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions())
             }
         }
     }
+}
+
+@Composable
+private fun ComputedFieldResult(
+    formula: String,
+    customFields: List<PatientCustomFieldEntity>,
+    customValues: Map<Long, String>,
+    patientNumber: String,
+) {
+    val result = patientFormulaResult(formula, customFields, customValues, patientNumber)
+    Text(
+        if (formula.isBlank()) "Формула не задана" else "Результат: ${if (result.isBlank()) "—" else result}",
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (formula.isNotBlank() && result.isBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+    )
 }

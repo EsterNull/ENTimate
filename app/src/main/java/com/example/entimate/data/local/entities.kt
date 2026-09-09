@@ -144,6 +144,7 @@ data class PatientCustomFieldEntity(
     val type: String,
     val options: String = "",
     val defaultValue: String = "",
+    val formula: String = "",
     val position: Int = 0,
     @ColumnInfo(defaultValue = "1") val folderId: Long = 1,
     override var version: Int = CURRENT_DATA_VERSION,
@@ -174,6 +175,7 @@ data class PatientFieldLinkEntity(
     val documentId: Long,
     val operation: String,
     val amount: Int,
+    val amountFieldKey: String = "",
     @ColumnInfo(defaultValue = "1") val folderId: Long = 1,
 )
 

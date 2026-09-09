@@ -228,6 +228,7 @@ class ReportRepository(
                 "CHECKBOX" -> interpretCheckbox(raw, col)
                 "DROPDOWN" -> interpretDropdown(raw, col, key)
                 "DATE" -> formatIsoDate(raw, dateFormat)
+                COMPUTED_TYPE -> computedColumnValue(key, p, customValues, customFields)
                 else -> raw
             }
         }
@@ -384,8 +385,18 @@ class ReportRepository(
         return Table(headers, rows, colAligns)
     }
 
+    private fun computedColumnValue(key: String, p: PatientEntity, customValues: Map<Long, String>, customFields: List<PatientCustomFieldEntity>): String {
+        val fid = if (isCustomKey(key)) customFieldIdFromKey(key) else 0L
+        val formula = customFields.firstOrNull { it.id == fid }?.formula ?: ""
+        return patientFormulaResult(formula, customFields, customValues, p.number.toString())
+    }
+
     private fun evaluateFilter(pw: PatientWithValues, filter: ReportFilterEntity, customFields: List<PatientCustomFieldEntity>): Boolean {
-        val value = columnValue(pw.patient, pw.customValues.associate { it.fieldId to it.value }, customFields.associate { it.id to it.label }, filter.fieldKey)
+        val cvMap = pw.customValues.associate { it.fieldId to it.value }
+        var value = columnValue(pw.patient, cvMap, customFields.associate { it.id to it.label }, filter.fieldKey)
+        if (fieldType(filter.fieldKey, customFields) == COMPUTED_TYPE) {
+            value = computedColumnValue(filter.fieldKey, pw.patient, cvMap, customFields)
+        }
         return passes(value, filter.operator, filter.value)
     }
 }

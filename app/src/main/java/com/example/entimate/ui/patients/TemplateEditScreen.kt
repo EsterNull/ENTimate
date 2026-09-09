@@ -143,7 +143,16 @@ fun TemplateEditScreen(nav: NavController, templateId: Long = 0L, vm: PatientsVi
                 Text("Пользовательские поля", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 customFields.forEach { cf ->
-                    CustomFieldEditor(cf, customValues[cf.id] ?: "", onValueChange = { customValues[cf.id] = it }, documents = documents, isLast = "custom:${cf.id}" == lastFieldKey)
+                    CustomFieldEditor(
+                        cf,
+                        customValues[cf.id] ?: "",
+                        onValueChange = { customValues[cf.id] = it },
+                        documents = documents,
+                        isLast = "custom:${cf.id}" == lastFieldKey,
+                        customFields = customFields,
+                        customValues = customValues,
+                        patientNumber = values["number"] ?: "",
+                    )
                     Spacer(Modifier.height(10.dp))
                 }
             }

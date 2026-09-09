@@ -189,6 +189,7 @@ fun PatientCustomFieldEntity.migrate(): PatientCustomFieldEntity = migrateVersio
             "type" to f.type,
             "options" to f.options,
             "defaultValue" to f.defaultValue,
+            "formula" to f.formula,
             "position" to f.position.toString(),
         )
     },
@@ -198,6 +199,7 @@ fun PatientCustomFieldEntity.migrate(): PatientCustomFieldEntity = migrateVersio
             type = m["type"] ?: "TEXT",
             options = m["options"] ?: "",
             defaultValue = m["defaultValue"] ?: "",
+            formula = m["formula"] ?: "",
             position = m["position"]?.toIntOrNull() ?: 0,
         )
     },

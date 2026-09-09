@@ -1,6 +1,7 @@
 package com.example.entimate.ui.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -10,7 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.example.entimate.data.local.COMPUTED_TYPE
 import com.example.entimate.data.local.DocumentEntity
 import com.example.entimate.data.local.PatientCustomFieldEntity
 import com.example.entimate.ui.stripNewlines
@@ -20,17 +24,27 @@ import com.example.entimate.ui.stripNewlines
 fun AddCustomFieldDialog(
     initial: PatientCustomFieldEntity? = null,
     documents: List<DocumentEntity> = emptyList(),
+    customFields: List<PatientCustomFieldEntity> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (label: String, type: String, options: String, default: String) -> Unit,
+    onConfirm: (label: String, type: String, options: String, default: String, formula: String) -> Unit,
 ) {
     var label by remember { mutableStateOf(initial?.label ?: "") }
     var type by remember { mutableStateOf(initial?.type ?: "TEXT") }
     var options by remember { mutableStateOf(initial?.options ?: "") }
     var default by remember { mutableStateOf(initial?.defaultValue ?: "") }
+    var formula by remember { mutableStateOf(initial?.formula ?: "") }
     var typeExpanded by remember { mutableStateOf(false) }
     var defaultExpanded by remember { mutableStateOf(false) }
     var newOption by remember { mutableStateOf("") }
-    val types = listOf("TEXT" to "Текст", "NUMBER" to "Число", "DATE" to "Дата", "DROPDOWN" to "Список", "CHECKBOX" to "Чекбокс", "DOCUMENT" to "Документ")
+    val types = listOf(
+        "TEXT" to "Текст",
+        "NUMBER" to "Число",
+        "DATE" to "Дата",
+        "DROPDOWN" to "Список",
+        "CHECKBOX" to "Чекбокс",
+        "DOCUMENT" to "Документ",
+        "COMPUTED" to "Вычисляемое",
+    )
 
     val optionList = remember(options) {
         options.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -128,6 +142,18 @@ fun AddCustomFieldDialog(
                             }
                         }
                     }
+                } else if (type == "COMPUTED") {
+                    Text(
+                        "Значение считается по формуле из числовых полей (как в Excel). " +
+                            "В карточке пациента будет показан только результат.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    FormulaBuilderField(formula, onFormulaChange = { formula = it }, customFields = customFields)
+                    if (formula.isBlank()) {
+                        Text("Введите формулу — поле обязательно.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    }
                 } else {
                     OutlinedTextField(value = default, onValueChange = { default = it.stripNewlines() }, label = { Text("Значение по умолчанию") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
                 }
@@ -137,10 +163,73 @@ fun AddCustomFieldDialog(
             TextButton(onClick = {
                 if (label.isNotBlank()) {
                     if (type == "DROPDOWN" && optionList.isEmpty()) return@TextButton
-                    onConfirm(label.trim(), type, options.trim(), default.trim())
+                    if (type == "COMPUTED" && formula.isBlank()) return@TextButton
+                    onConfirm(label.trim(), type, options.trim(), default.trim(), formula.trim())
                 }
             }) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FormulaBuilderField(
+    value: String,
+    onFormulaChange: (String) -> Unit,
+    customFields: List<PatientCustomFieldEntity>,
+) {
+    var tf by remember { mutableStateOf(TextFieldValue(value)) }
+    LaunchedEffect(value) {
+        if (tf.text != value) {
+            val sel = tf.selection.start.coerceIn(0, value.length)
+            tf = TextFieldValue(value, selection = TextRange(sel))
+        }
+    }
+
+    fun insertToken(token: String) {
+        val text = tf.text
+        val start = tf.selection.start.coerceIn(0, text.length)
+        val end = tf.selection.end.coerceIn(start, text.length)
+        val newText = text.replaceRange(start, end, token)
+        tf = TextFieldValue(newText, selection = TextRange(start + token.length))
+        onFormulaChange(newText)
+    }
+
+    val insertable = buildList {
+        add("Номер пациента" to "number")
+        customFields.filter { it.type == "NUMBER" || it.type == COMPUTED_TYPE }
+            .forEach { add(it.label to "custom:${it.id}") }
+    }
+
+    Column {
+        Text("Вставьте поля в формулу (числовые поля и результат других вычисляемых полей):", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+        Spacer(Modifier.height(4.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            insertable.forEach { (label, key) ->
+                AssistChip(
+                    onClick = { insertToken("{$key}") },
+                    label = { Text(label) },
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        OutlinedTextField(
+            value = tf,
+            onValueChange = {
+                tf = it
+                onFormulaChange(it.text)
+            },
+            label = { Text("Формула") },
+            placeholder = { Text("Например: {Рост} + {Вес}") },
+            minLines = 2,
+            maxLines = 4,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            "Операторы: + − * / ( ) ^. Функции: abs, sqrt, cbrt, ln, log, exp, floor, ceil, round, sign, min(a, b), max(a, b).",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline,
+        )
+    }
 }

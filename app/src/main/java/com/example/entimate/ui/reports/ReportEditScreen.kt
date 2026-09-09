@@ -76,7 +76,7 @@ private val AGG_OPTIONS = listOf(
 
 private fun operatorOptions(type: String): List<Pair<String, String>> = when (type) {
     "TEXT" -> listOf("EQ" to "совпадает", "CONTAINS" to "совпадает частично")
-    "NUMBER" -> listOf("EQ" to "равно", "GT" to "больше", "GTE" to "больше или равно", "LT" to "меньше", "LTE" to "меньше или равно")
+    "NUMBER", "COMPUTED" -> listOf("EQ" to "равно", "GT" to "больше", "GTE" to "больше или равно", "LT" to "меньше", "LTE" to "меньше или равно")
     "DATE" -> listOf("EQ" to "равно", "GTE" to "после", "LTE" to "до")
     else -> listOf("EQ" to "равно")
 }

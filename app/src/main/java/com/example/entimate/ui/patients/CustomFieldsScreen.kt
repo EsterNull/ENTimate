@@ -30,7 +30,15 @@ import com.example.entimate.data.repository.PatientRepository
 import com.example.entimate.ui.components.AddCustomFieldDialog
 import kotlinx.coroutines.launch
 
-private val TYPE_LABELS = mapOf("TEXT" to "Текст", "NUMBER" to "Число", "DATE" to "Дата", "DROPDOWN" to "Список", "CHECKBOX" to "Чекбокс", "DOCUMENT" to "Документ")
+private val TYPE_LABELS = mapOf(
+    "TEXT" to "Текст",
+    "NUMBER" to "Число",
+    "DATE" to "Дата",
+    "DROPDOWN" to "Список",
+    "CHECKBOX" to "Чекбокс",
+    "DOCUMENT" to "Документ",
+    "COMPUTED" to "Вычисляемое",
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -77,7 +85,7 @@ fun CustomFieldsScreen(nav: NavController) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()).imePadding()) {
             Text(
-                "Добавляйте свои поля пациента (текст, число, дата, список, чекбокс, документ). " +
+                "Добавляйте свои поля пациента (текст, число, дата, список, чекбокс, документ, вычисляемое). " +
                     "Они появляются в карточке пациента и могут использоваться в отчётах и связях с документами.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
@@ -146,10 +154,11 @@ fun CustomFieldsScreen(nav: NavController) {
         AddCustomFieldDialog(
             initial = editing,
             documents = documents,
+            customFields = fields,
             onDismiss = { showDialog = false; editing = null },
-            onConfirm = { label, type, options, def ->
-                val field = editing?.copy(label = label, type = type, options = options, defaultValue = def)
-                    ?: PatientCustomFieldEntity(label = label, type = type, options = options, defaultValue = def, position = fields.size)
+            onConfirm = { label, type, options, def, formula ->
+                val field = editing?.copy(label = label, type = type, options = options, defaultValue = def, formula = formula)
+                    ?: PatientCustomFieldEntity(label = label, type = type, options = options, defaultValue = def, formula = formula, position = fields.size)
                 scope.launch { repo.saveCustomField(field) }
                 showDialog = false
                 editing = null
@@ -173,6 +182,9 @@ private fun CustomFieldCard(
             }
             if (cf.options.isNotBlank()) {
                 Text("Варианты: ${cf.options}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            }
+            if (cf.type == "COMPUTED") {
+                Text("Формула: ${cf.formula.ifBlank { "—" }}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
             if (cf.defaultValue.isNotBlank()) {
                 Text("По умолчанию: ${cf.defaultValue}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)

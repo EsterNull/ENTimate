@@ -229,6 +229,7 @@ class BackupRepository(
                 put("type", it.type)
                 put("options", it.options)
                 put("defaultValue", it.defaultValue)
+                put("formula", it.formula)
                 put("position", it.position)
                 put("folderId", it.folderId)
             }
@@ -249,6 +250,7 @@ class BackupRepository(
                 put("documentId", it.documentId)
                 put("operation", it.operation)
                 put("amount", it.amount)
+                put("amountFieldKey", it.amountFieldKey)
                 put("folderId", it.folderId)
             }
         }))
@@ -585,6 +587,7 @@ class BackupRepository(
                         type = o.optString("type", "TEXT"),
                         options = o.optString("options", ""),
                         defaultValue = o.optString("defaultValue", ""),
+                        formula = o.optString("formula", ""),
                         position = o.optInt("position", 0),
                         folderId = o.optLong("folderId", 1),
                     )
@@ -617,6 +620,7 @@ class BackupRepository(
                         documentId = o.optLong("documentId", 0),
                         operation = o.optString("operation", "DECREASE"),
                         amount = o.optInt("amount", 0),
+                        amountFieldKey = o.optString("amountFieldKey", ""),
                         folderId = o.optLong("folderId", 1),
                     )
                 )
