@@ -17,7 +17,9 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
@@ -32,7 +34,6 @@ import com.example.entimate.ui.components.colorLuminance
 import com.example.entimate.ui.components.tutorialAnchor
 import com.example.entimate.ui.components.SwipeableRow
 import com.example.entimate.ui.folders.CurrentFolderBar
-import com.example.entimate.ui.folders.FolderBarHeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,6 +41,7 @@ import androidx.navigation.NavController
 import com.example.entimate.data.local.ReportWithColumns
 import com.example.entimate.viewmodel.ReportsViewModel
 import com.example.entimate.viewmodel.SettingsViewModel
+import com.example.entimate.util.normalKey
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -60,8 +62,13 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
     var pendingDelete by remember { mutableStateOf<ReportWithColumns?>(null) }
     var generateTarget by remember { mutableStateOf<ReportWithColumns?>(null) }
     var reordering by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     var fromMillis by remember { mutableStateOf(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000) }
     var toMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    val searchQuery = query.trim()
+    val filteredReports = if (searchQuery.isBlank()) reports else reports.filter { it.report.name.normalKey().contains(searchQuery.normalKey()) }
 
     val listState = rememberLazyListState()
 
@@ -159,7 +166,10 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
                         IconButton(onClick = { tutorial?.start() }) {
                             Icon(Icons.Filled.Help, contentDescription = "Обучение")
                         }
-                        IconButton(onClick = { reordering = true }) {
+                        IconButton(onClick = { showSearch = !showSearch; if (!showSearch) query = "" }) {
+                            Icon(Icons.Filled.Search, contentDescription = "Поиск")
+                        }
+                        IconButton(onClick = { reordering = true }, enabled = searchQuery.isBlank()) {
                             Icon(Icons.Filled.DragHandle, contentDescription = "Изменить порядок")
                         }
                     }
@@ -167,89 +177,115 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
             )
         },
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (reports.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) { Text("Нет отчётов.\nНажмите «+», чтобы создать.", textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = listState,
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = FolderBarHeight + 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+            if (showSearch) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    itemsIndexed(reports, key = { _, r -> r.report.id }) { index, r ->
-                        if (reordering) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .animateItem(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column {
-                                    IconButton(
-                                        onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
-                                        enabled = index > 0,
-                                    ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
-                                    IconButton(
-                                        onClick = { if (index < reports.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
-                                        enabled = index < reports.lastIndex,
-                                    ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Поиск по названию") },
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    )
+                    IconButton(onClick = { query = "" }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Очистить")
+                    }
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                if (filteredReports.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(if (searchQuery.isBlank()) "Нет отчётов.\nНажмите «+», чтобы создать." else "Ничего не найдено.", textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        itemsIndexed(filteredReports, key = { _, r -> r.report.id }) { index, r ->
+                            if (reordering) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateItem(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column {
+                                        IconButton(
+                                            onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
+                                            enabled = index > 0,
+                                        ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
+                                        IconButton(
+                                            onClick = { if (index < filteredReports.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
+                                            enabled = index < filteredReports.lastIndex,
+                                        ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+                                    }
+                                    Box(Modifier.weight(1f)) {
+                                        ReportCard(
+                                            report = r,
+                                            onGenerate = {},
+                                            onClick = {},
+                                            onLongClick = {},
+                                        )
+                                    }
                                 }
-                                Box(Modifier.weight(1f)) {
+                            } else {
+                                SwipeableRow(
+                                    onSwipeLeft = { pendingDelete = r },
+                                    onSwipeRight = { nav.navigate("reports/edit/${r.report.id}") },
+                                    backgroundLeft = {
+                                        Box(
+                                            Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
+                                            contentAlignment = Alignment.CenterEnd,
+                                        ) { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                    },
+                                    backgroundRight = {
+                                        Box(
+                                            Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 24.dp),
+                                            contentAlignment = Alignment.CenterStart,
+                                        ) { Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                    },
+                                ) {
                                     ReportCard(
                                         report = r,
-                                        onGenerate = {},
-                                        onClick = {},
-                                        onLongClick = {},
+                                        onGenerate = {
+                                            fromMillis = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+                                            toMillis = System.currentTimeMillis()
+                                            generateTarget = r
+                                        },
+                                        onClick = {
+                                            val now = System.currentTimeMillis()
+                                            val weekAgo = now - 7L * 24 * 60 * 60 * 1000
+                                            val base = if (r.report.kind == "DOCUMENT") "reports/docpreview/${r.report.id}" else "reports/preview/${r.report.id}"
+                                            nav.navigate("$base/$weekAgo/$now")
+                                        },
+                                        onLongClick = { pendingDup = r },
                                     )
                                 }
-                            }
-                        } else {
-                            SwipeableRow(
-                                onSwipeLeft = { pendingDelete = r },
-                                onSwipeRight = { nav.navigate("reports/edit/${r.report.id}") },
-                                backgroundLeft = {
-                                    Box(
-                                        Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 24.dp),
-                                        contentAlignment = Alignment.CenterEnd,
-                                    ) { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-                                },
-                                backgroundRight = {
-                                    Box(
-                                        Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 24.dp),
-                                        contentAlignment = Alignment.CenterStart,
-                                    ) { Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                                },
-                            ) {
-                                ReportCard(
-                                    report = r,
-                                    onGenerate = {
-                                        fromMillis = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
-                                        toMillis = System.currentTimeMillis()
-                                        generateTarget = r
-                                    },
-                                    onClick = {
-                                        val now = System.currentTimeMillis()
-                                        val weekAgo = now - 7L * 24 * 60 * 60 * 1000
-                                        val base = if (r.report.kind == "DOCUMENT") "reports/docpreview/${r.report.id}" else "reports/preview/${r.report.id}"
-                                        nav.navigate("$base/$weekAgo/$now")
-                                    },
-                                    onLongClick = { pendingDup = r },
-                                )
                             }
                         }
                     }
                 }
             }
             CurrentFolderBar(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier,
                 onOpenFolders = { nav.navigate("folders") },
                 onAdd = { nav.navigate("reports/edit/0") },
             )

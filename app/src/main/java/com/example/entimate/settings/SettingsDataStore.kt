@@ -18,6 +18,7 @@ object SettingsKeys {
     val TUTORIAL_SEEN = booleanPreferencesKey("tutorial_seen")
     val CURRENT_FOLDER_ID = longPreferencesKey("current_folder_id")
     val PENDING_UPDATE_VERSION = stringPreferencesKey("pending_update_version")
+    val SHOW_DISCHARGED = booleanPreferencesKey("show_discharged")
 }
 
 data class ThemeSettings(
@@ -27,6 +28,7 @@ data class ThemeSettings(
     val customBg: Long = 0L,
     val customSecondary: Long = 0L,
     val dateFormat: String = "dd.MM.yyyy",
+    val showDischarged: Boolean = false,
 )
 
 class SettingsDataStore(private val context: Context) {
@@ -38,6 +40,7 @@ class SettingsDataStore(private val context: Context) {
             customBg = prefs[SettingsKeys.CUSTOM_BG_COLOR] ?: 0L,
             customSecondary = prefs[SettingsKeys.CUSTOM_SECONDARY_COLOR] ?: 0L,
             dateFormat = prefs[SettingsKeys.DATE_FORMAT] ?: "dd.MM.yyyy",
+            showDischarged = prefs[SettingsKeys.SHOW_DISCHARGED] ?: false,
         )
     }
 
@@ -48,6 +51,7 @@ class SettingsDataStore(private val context: Context) {
         customBg: Long? = null,
         customSecondary: Long? = null,
         dateFormat: String? = null,
+        showDischarged: Boolean? = null,
     ) {
         context.dataStore.edit { prefs ->
             preset?.let { prefs[SettingsKeys.THEME_PRESET] = it }
@@ -56,6 +60,7 @@ class SettingsDataStore(private val context: Context) {
             customBg?.let { prefs[SettingsKeys.CUSTOM_BG_COLOR] = it }
             customSecondary?.let { prefs[SettingsKeys.CUSTOM_SECONDARY_COLOR] = it }
             dateFormat?.let { prefs[SettingsKeys.DATE_FORMAT] = it }
+            showDischarged?.let { prefs[SettingsKeys.SHOW_DISCHARGED] = it }
         }
     }
 

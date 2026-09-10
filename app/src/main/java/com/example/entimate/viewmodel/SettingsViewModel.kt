@@ -23,7 +23,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         customBg: Long? = null,
         customSecondary: Long? = null,
         dateFormat: String? = null,
+        showDischarged: Boolean? = null,
     ) = viewModelScope.launch {
-        ds.update(preset, darkMode, customColor, customBg, customSecondary, dateFormat)
+        ds.update(preset, darkMode, customColor, customBg, customSecondary, dateFormat, showDischarged)
     }
 }

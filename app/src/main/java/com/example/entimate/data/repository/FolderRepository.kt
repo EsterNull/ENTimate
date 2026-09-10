@@ -3,6 +3,7 @@ package com.example.entimate.data.repository
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
 import com.example.entimate.settings.SettingsDataStore
+import com.example.entimate.util.normalKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -114,8 +115,8 @@ class FolderRepository(
     }
 
     suspend fun hasDuplicateName(name: String, excludeId: Long = 0L): Boolean {
-        val clean = name.trim().lowercase()
-        return folderDao.getAll().any { it.id != excludeId && it.name.trim().lowercase() == clean }
+        val clean = name.trim().normalKey()
+        return folderDao.getAll().any { it.id != excludeId && it.name.trim().normalKey() == clean }
     }
 
     suspend fun reorder(from: Int, to: Int) {

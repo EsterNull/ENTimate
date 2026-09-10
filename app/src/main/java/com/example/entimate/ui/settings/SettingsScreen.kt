@@ -154,6 +154,34 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
 
             HorizontalDivider()
 
+            Text("Пациенты", style = MaterialTheme.typography.titleMedium)
+            Button(
+                onClick = { nav.navigate("patients/links") },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Настройки связей с документами") }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { vm.update(showDischarged = !settings.showDischarged) },
+            ) {
+                Switch(
+                    checked = settings.showDischarged,
+                    onCheckedChange = { vm.update(showDischarged = it) },
+                )
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text("Показывать выписанных пациентов")
+                    Text(
+                        "Выписанные карточки отмечаются пометкой. Изменение их данных не влияет на количество документов.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            HorizontalDivider()
+
             Text("Резервное копирование", style = MaterialTheme.typography.titleMedium)
             Button(
                 onClick = {

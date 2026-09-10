@@ -5,6 +5,7 @@ import com.example.entimate.data.local.*
 import com.example.entimate.data.local.DocCell
 import com.example.entimate.data.local.manualTableFromJson
 import com.example.entimate.ui.components.formatIsoDate
+import com.example.entimate.util.normalKey
 import kotlin.comparisons.compareBy
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -144,11 +145,11 @@ class ReportRepository(
     suspend fun duplicateReport(reportId: Long): Long = db.withTransaction {
         val src = reportDao.getWithFilters(reportId) ?: return@withTransaction 0L
         val folder = src.report.folderId
-        val existing = reportDao.getAll(folder).map { it.name.lowercase() }
+        val existing = reportDao.getAll(folder).map { it.name.normalKey() }
         val base = src.report.name.replace(Regex(""" \(\d+\)$"""), "")
         var n = 1
         var candidate = "$base ($n)"
-        while (existing.contains(candidate.lowercase())) {
+        while (existing.contains(candidate.normalKey())) {
             n++
             candidate = "$base ($n)"
         }
@@ -166,8 +167,8 @@ class ReportRepository(
 
     private fun passes(value: String, operator: String, target: String): Boolean {
         return when (operator) {
-            "EQ" -> value == target
-            "CONTAINS" -> value.contains(target, ignoreCase = true)
+            "EQ" -> value.normalKey() == target.normalKey()
+            "CONTAINS" -> value.normalKey().contains(target.normalKey())
             "GT" -> (value.toDoubleOrNull() ?: Double.MIN_VALUE) > (target.toDoubleOrNull() ?: 0.0)
             "LT" -> (value.toDoubleOrNull() ?: Double.MAX_VALUE) < (target.toDoubleOrNull() ?: 0.0)
             "GTE" -> (value.toDoubleOrNull() ?: Double.MIN_VALUE) >= (target.toDoubleOrNull() ?: 0.0)
@@ -351,11 +352,14 @@ class ReportRepository(
         val measureCols = report.columns.filter { it.agg.isNotBlank() }
 
         val groups = linkedMapOf<List<String>, List<AggAcc>>()
+        val groupDisplays = mutableMapOf<List<String>, List<String>>()
         val totals = measureCols.map { AggAcc(it.agg) }
 
         for (pw in inPeriod) {
             val cvMap = pw.customValues.associate { it.fieldId to it.value }
-            val gkey = groupCols.map { resolveColumnValue(it, pw.patient, cvMap, customLabels, customFields, dateFormat) }
+            val displayVals = groupCols.map { resolveColumnValue(it, pw.patient, cvMap, customLabels, customFields, dateFormat) }
+            val gkey = displayVals.map { it.normalKey() }
+            if (!groups.containsKey(gkey)) groupDisplays[gkey] = displayVals
             val accs = groups.getOrPut(gkey) { measureCols.map { AggAcc(it.agg) } }
             measureCols.forEachIndexed { i, col ->
                 val raw = resolveColumnValue(col, pw.patient, cvMap, customLabels, customFields, dateFormat)
@@ -378,7 +382,7 @@ class ReportRepository(
         groups.entries.forEachIndexed { idx, (gkey, accs) ->
             val row = mutableListOf<String>()
             if (withNumber) row.add((idx + 1).toString())
-            row.addAll(gkey)
+            row.addAll(groupDisplays[gkey] ?: gkey)
             accs.forEach { row.add(formatAgg(it.result())) }
             rows.add(row)
         }

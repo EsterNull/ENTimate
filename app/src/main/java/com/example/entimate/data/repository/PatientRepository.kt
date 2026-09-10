@@ -3,6 +3,7 @@ package com.example.entimate.data.repository
 import android.util.Log
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
+import com.example.entimate.util.normalKey
 import kotlin.comparisons.compareBy
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -70,7 +71,9 @@ class PatientRepository(
                 patientDao.insertCustomValue(PatientCustomValueEntity(patientId = id, fieldId = fid, value = value))
             }
         }
-        syncEffects(id, recordStats = true)
+        if (toSave.discharged != 1) {
+            syncEffects(id, recordStats = true)
+        }
         folderRepo.refresh()
         id
     }
@@ -292,7 +295,7 @@ class PatientRepository(
         return when {
             link.sourceKey == PATIENT_GLOBAL_KEY -> sign
             link.conditionValue.isBlank() -> sign
-            valueFor(p, cvMap, link.sourceKey) == link.conditionValue -> sign
+            valueFor(p, cvMap, link.sourceKey).normalKey() == link.conditionValue.normalKey() -> sign
             else -> 0
         }
     }

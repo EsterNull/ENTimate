@@ -15,8 +15,10 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,9 +40,9 @@ import com.example.entimate.ui.components.LocalTutorial
 import com.example.entimate.ui.components.SwipeableRow
 import com.example.entimate.ui.components.tutorialAnchor
 import com.example.entimate.ui.folders.CurrentFolderBar
-import com.example.entimate.ui.folders.FolderBarHeight
 import com.example.entimate.viewmodel.PatientsViewModel
 import com.example.entimate.viewmodel.SettingsViewModel
+import com.example.entimate.util.normalKey
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -53,6 +55,18 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
     val settings by settingsVm.settings.collectAsStateWithLifecycle()
     val customFields by vm.customFields.collectAsStateWithLifecycle()
     val activePatients = patients.filter { it.patient.discharged != 1 }
+    val dischargedPatients = patients.filter { it.patient.discharged == 1 }
+    val visiblePatients = if (settings.showDischarged) activePatients + dischargedPatients else activePatients
+    var showSearch by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val searchQuery = query.trim()
+    val filteredPatients = if (searchQuery.isBlank()) {
+        visiblePatients
+    } else {
+        visiblePatients.filter { pw ->
+            listOf(pw.patient.lastName, pw.patient.firstName, pw.patient.middleName).any { it.normalKey().contains(searchQuery.normalKey()) }
+        }
+    }
     var pendingDelete by remember { mutableStateOf<PatientWithValues?>(null) }
     var pendingDischarge by remember { mutableStateOf<PatientWithValues?>(null) }
     var pendingReregister by remember { mutableStateOf<PatientWithValues?>(null) }
@@ -92,7 +106,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
         AlertDialog(
             onDismissRequest = { pendingDischarge = null },
             title = { Text("Выписать пациента?") },
-            text = { Text("Пациент «${pendingDischarge!!.patient.lastName} ${pendingDischarge!!.patient.firstName}» будет отмечен как выписанный. Карточка исчезнет из списка, но данные останутся в отчётах. Количество документов при этом не изменится.") },
+            text = { Text("Пациент «${pendingDischarge!!.patient.lastName} ${pendingDischarge!!.patient.firstName}» будет отмечен как выписанный. Данные останутся в отчётах. Количество документов при этом не изменится.") },
             confirmButton = {
                 TextButton(onClick = {
                     vm.dischargePatient(pendingDischarge!!.patient)
@@ -174,13 +188,16 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                         IconButton(onClick = { tutorial?.start() }) {
                             Icon(Icons.Filled.Help, contentDescription = "Обучение")
                         }
+                        IconButton(onClick = { showSearch = !showSearch; if (!showSearch) query = "" }) {
+                            Icon(Icons.Filled.Search, contentDescription = "Поиск")
+                        }
                         IconButton(onClick = { nav.navigate("patients/links") }) {
                             Icon(Icons.Filled.Settings, contentDescription = "Настройки связей с документами")
                         }
                         IconButton(onClick = { nav.navigate("patienttemplates") }) {
                             Icon(Icons.Filled.Layers, contentDescription = "Шаблоны пациентов")
                         }
-                        IconButton(onClick = { reordering = true }) {
+                        IconButton(onClick = { reordering = true }, enabled = searchQuery.isBlank()) {
                             Icon(Icons.Filled.DragHandle, contentDescription = "Изменить порядок")
                         }
                     }
@@ -188,54 +205,100 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
             )
         },
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (activePatients.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
+            if (showSearch) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Нет пациентов.\nНажмите «+», чтобы добавить.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Поиск по имени") },
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    )
+                    IconButton(onClick = { query = "" }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Очистить")
+                    }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = listState,
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = FolderBarHeight + 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    itemsIndexed(activePatients, key = { _, pw -> pw.patient.id }) { index, pw ->
-                        if (reordering) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .animateItem(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column {
-                                    IconButton(
-                                        onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
-                                        enabled = index > 0,
-                                    ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
-                                    IconButton(
-                                        onClick = { if (index < activePatients.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
-                                        enabled = index < activePatients.lastIndex,
-                                    ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                if (filteredPatients.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (searchQuery.isBlank()) "Нет пациентов.\nНажмите «+», чтобы добавить." else "Ничего не найдено.",
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        itemsIndexed(filteredPatients, key = { _, pw -> pw.patient.id }) { index, pw ->
+                            if (reordering) {
+                                if (pw.patient.discharged == 1) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .animateItem(),
+                                    ) {
+                                        Box(Modifier.weight(1f)) {
+                                            PatientCard(
+                                                p = pw.patient,
+                                                dateFormat = settings.dateFormat,
+                                                onClick = {},
+                                                onDischarge = {},
+                                                onReregister = {},
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .animateItem(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column {
+                                            IconButton(
+                                                onClick = { if (index > 0) scope.launch { vm.reorder(index, index - 1) } },
+                                                enabled = index > 0,
+                                            ) { Icon(Icons.Filled.ArrowDropUp, contentDescription = "Вверх") }
+                                            IconButton(
+                                                onClick = { if (index < activePatients.lastIndex) scope.launch { vm.reorder(index, index + 1) } },
+                                                enabled = index < activePatients.lastIndex,
+                                            ) { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Вниз") }
+                                        }
+                                        Box(Modifier.weight(1f)) {
+                                            PatientCard(
+                                                p = pw.patient,
+                                                dateFormat = settings.dateFormat,
+                                                onClick = {},
+                                                onDischarge = {},
+                                                onReregister = {},
+                                            )
+                                        }
+                                    }
                                 }
-                                Box(Modifier.weight(1f)) {
-                                    PatientCard(
-                                        p = pw.patient,
-                                        dateFormat = settings.dateFormat,
-                                        onClick = {},
-                                        onDischarge = {},
-                                        onReregister = {},
-                                    )
-                                }
-                            }
-                        } else {
+                            } else {
                             SwipeableRow(
                                 onSwipeLeft = { pendingDelete = pw },
                                 onSwipeRight = { nav.navigate("patients/edit/${pw.patient.id}") },
@@ -265,12 +328,13 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                 }
             }
             CurrentFolderBar(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier,
                 onOpenFolders = { nav.navigate("folders") },
                 onAdd = { nav.navigate("patients/edit/0") },
             )
         }
     }
+}
 }
 
 @Composable
@@ -298,6 +362,15 @@ private fun PatientCard(p: PatientEntity, dateFormat: String = "dd.MM.yyyy", onC
                     Spacer(Modifier.width(8.dp))
                     Text("СОЧ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 }
+                if (p.discharged == 1) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "ВЫПИСАН",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    )
+                }
             }
             Spacer(Modifier.height(4.dp))
             Text(fio.ifBlank { "Без имени" }, style = MaterialTheme.typography.titleMedium)
@@ -310,15 +383,29 @@ private fun PatientCard(p: PatientEntity, dateFormat: String = "dd.MM.yyyy", onC
                 Spacer(Modifier.height(2.dp))
                 Text("Поступление: $formattedAdmission", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
             }
+            if (p.discharged == 1 && p.dischargeDate.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text("Выписан: ${formatDischargeDate(p.dischargeDate, dateFormat)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+            }
             Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Button(
-                    onClick = onDischarge,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-                ) { Text("Выписать") }
+            if (p.discharged != 1) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Button(
+                        onClick = onDischarge,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+                    ) { Text("Выписать") }
+                }
             }
         }
     }
+}
+
+private fun formatDischargeDate(iso: String, dateFormat: String): String = try {
+    val isoFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val displayFmt = SimpleDateFormat(dateFormat, Locale.getDefault())
+    isoFmt.parse(iso)?.let { displayFmt.format(it) } ?: iso
+} catch (_: Exception) {
+    iso
 }
 
 @Composable

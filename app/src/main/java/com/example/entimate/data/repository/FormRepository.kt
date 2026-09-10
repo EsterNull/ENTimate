@@ -2,6 +2,7 @@ package com.example.entimate.data.repository
 
 import androidx.room.withTransaction
 import com.example.entimate.data.local.*
+import com.example.entimate.util.normalKey
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -91,10 +92,10 @@ class FormRepository(
         val condVal = values[link.conditionFieldId] ?: ""
         return when (condField.type) {
             "SWITCH" -> (condVal.toBooleanStrictOrNull() ?: false) == (link.conditionValue == "true")
-            "DROPDOWN" -> condVal == link.conditionValue
+            "DROPDOWN" -> condVal.normalKey() == link.conditionValue.normalKey()
             "CHECKBOX_LIST" -> {
-                val required = link.conditionValue.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                val selected = condVal.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                val required = link.conditionValue.split(",").map { it.trim().normalKey() }.filter { it.isNotBlank() }
+                val selected = condVal.split(",").map { it.trim().normalKey() }.filter { it.isNotBlank() }
                 required.all { selected.contains(it) }
             }
             "NUMBER" -> {
