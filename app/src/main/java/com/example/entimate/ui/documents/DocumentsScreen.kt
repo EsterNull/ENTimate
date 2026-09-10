@@ -31,6 +31,7 @@ import com.example.entimate.ui.components.DocumentCard
 import com.example.entimate.ui.components.SwipeableRow
 import com.example.entimate.ui.components.tutorialAnchor
 import com.example.entimate.ui.folders.CurrentFolderBar
+import com.example.entimate.ui.folders.FolderBarHeight
 import com.example.entimate.viewmodel.DocumentsViewModel
 import com.example.entimate.util.normalKey
 import kotlinx.coroutines.launch
@@ -166,7 +167,7 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = listState,
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = FolderBarHeight + 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         itemsIndexed(filteredDocs, key = { _, doc -> doc.id }) { index, doc ->
@@ -233,18 +234,18 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                                         onAdjust = { vm.adjust(doc.id, it) },
                                         onCommit = { vm.recordChange(doc.id, it) },
                                     )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+}
+                             }
+                     }
+                 }
+             }
             CurrentFolderBar(
-                modifier = Modifier,
+                modifier = Modifier.align(Alignment.BottomCenter),
                 onOpenFolders = { nav.navigate("folders") },
                 onAdd = { nav.navigate("documents/edit/0") },
                 addTutorialAnchor = "doc_add",
             )
+            }
         }
     }
 }

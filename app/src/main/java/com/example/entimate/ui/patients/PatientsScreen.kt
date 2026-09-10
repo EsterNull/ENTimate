@@ -40,6 +40,7 @@ import com.example.entimate.ui.components.LocalTutorial
 import com.example.entimate.ui.components.SwipeableRow
 import com.example.entimate.ui.components.tutorialAnchor
 import com.example.entimate.ui.folders.CurrentFolderBar
+import com.example.entimate.ui.folders.FolderBarHeight
 import com.example.entimate.viewmodel.PatientsViewModel
 import com.example.entimate.viewmodel.SettingsViewModel
 import com.example.entimate.util.normalKey
@@ -191,9 +192,6 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                         IconButton(onClick = { showSearch = !showSearch; if (!showSearch) query = "" }) {
                             Icon(Icons.Filled.Search, contentDescription = "Поиск")
                         }
-                        IconButton(onClick = { nav.navigate("patients/links") }) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Настройки связей с документами")
-                        }
                         IconButton(onClick = { nav.navigate("patienttemplates") }) {
                             Icon(Icons.Filled.Layers, contentDescription = "Шаблоны пациентов")
                         }
@@ -249,7 +247,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = listState,
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = FolderBarHeight + 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         itemsIndexed(filteredPatients, key = { _, pw -> pw.patient.id }) { index, pw ->
@@ -328,7 +326,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                 }
             }
             CurrentFolderBar(
-                modifier = Modifier,
+                modifier = Modifier.align(Alignment.BottomCenter),
                 onOpenFolders = { nav.navigate("folders") },
                 onAdd = { nav.navigate("patients/edit/0") },
             )

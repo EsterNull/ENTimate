@@ -34,6 +34,7 @@ import com.example.entimate.ui.components.colorLuminance
 import com.example.entimate.ui.components.tutorialAnchor
 import com.example.entimate.ui.components.SwipeableRow
 import com.example.entimate.ui.folders.CurrentFolderBar
+import com.example.entimate.ui.folders.FolderBarHeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -216,7 +217,7 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = listState,
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = FolderBarHeight + 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         itemsIndexed(filteredReports, key = { _, r -> r.report.id }) { index, r ->
@@ -283,12 +284,12 @@ fun ReportsScreen(nav: NavController, vm: ReportsViewModel = viewModel()) {
                         }
                     }
                 }
-            }
             CurrentFolderBar(
-                modifier = Modifier,
+                modifier = Modifier.align(Alignment.BottomCenter),
                 onOpenFolders = { nav.navigate("folders") },
                 onAdd = { nav.navigate("reports/edit/0") },
             )
+            }
         }
     }
 }
