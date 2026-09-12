@@ -373,7 +373,7 @@ private fun PatientCard(p: PatientEntity, dateFormat: String = "dd.MM.yyyy", onC
             Spacer(Modifier.height(4.dp))
             Text(fio.ifBlank { "Без имени" }, style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
-            val details = listOf(p.rank, p.unit).filter { it.isNotBlank() }.joinToString(" · ")
+            val details = listOf(p.rank, categoryCode(p.category), p.unit).filter { it.isNotBlank() }.joinToString(" · ")
             if (details.isNotBlank()) {
                 Text(details, style = MaterialTheme.typography.bodyMedium)
             }
@@ -396,6 +396,17 @@ private fun PatientCard(p: PatientEntity, dateFormat: String = "dd.MM.yyyy", onC
             }
         }
     }
+}
+
+private fun categoryCode(category: String): String = when (category.trim()) {
+    "по призыву" -> "п/п"
+    "по контракту" -> "К"
+    "по мобилизации" -> "Моб"
+    "военные сборы" -> "в/с"
+    "курсант" -> "курс"
+    "курсант-контрактник" -> "курс К"
+    "абитуриент" -> "аб"
+    else -> ""
 }
 
 private fun formatDischargeDate(iso: String, dateFormat: String): String = try {
@@ -433,7 +444,7 @@ private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, custo
             Text(fio, style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(4.dp))
         }
-        val mainNumber = listOf(p.rank, p.unit).filter { it.isNotBlank() }.joinToString(" · ")
+        val mainNumber = listOf(p.rank, categoryCode(p.category), p.unit).filter { it.isNotBlank() }.joinToString(" · ")
         if (mainNumber.isNotBlank()) {
             Text(mainNumber, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
