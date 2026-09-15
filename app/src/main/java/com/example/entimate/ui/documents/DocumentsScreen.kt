@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -132,7 +132,7 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                         Box {
                             IconButton(onClick = { filterMenuOpen = true }) {
                                 Icon(
-                                    Icons.Filled.FilterList,
+                                    Icons.Filled.FilterAlt,
                                     contentDescription = "Фильтр",
                                     tint = if (docFilter != DocQuantityFilter.ALL) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                                 )
@@ -186,7 +186,7 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OutlinedTextField(
