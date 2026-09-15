@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -16,12 +17,14 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -36,6 +39,8 @@ import com.example.entimate.viewmodel.DocumentsViewModel
 import com.example.entimate.util.normalKey
 import kotlinx.coroutines.launch
 
+enum class DocQuantityFilter { ALL, IN_STOCK, EMPTY, BELOW, MORE }
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
@@ -45,11 +50,25 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
     var reordering by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var docFilter by remember { mutableStateOf(DocQuantityFilter.ALL) }
+    var filterMenuOpen by remember { mutableStateOf(false) }
+    var thresholdText by remember { mutableStateOf("5") }
     val scope = rememberCoroutineScope()
     val tutorial = LocalTutorial.current
 
     val searchQuery = query.trim()
-    val filteredDocs = if (searchQuery.isBlank()) docs else docs.filter { it.name.normalKey().contains(searchQuery.normalKey()) }
+    val threshold = thresholdText.toIntOrNull() ?: 0
+    val filteredDocs = docs.filter { doc ->
+        val nameOk = searchQuery.isBlank() || doc.name.normalKey().contains(searchQuery.normalKey())
+        val qtyOk = when (docFilter) {
+            DocQuantityFilter.ALL -> true
+            DocQuantityFilter.IN_STOCK -> doc.quantity > 0
+            DocQuantityFilter.EMPTY -> doc.quantity <= 0
+            DocQuantityFilter.BELOW -> doc.quantity < threshold
+            DocQuantityFilter.MORE -> doc.quantity > threshold
+        }
+        nameOk && qtyOk
+    }
 
     val listState = rememberLazyListState()
 
@@ -110,9 +129,25 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                         IconButton(onClick = { showSearch = !showSearch; if (!showSearch) query = "" }) {
                             Icon(Icons.Filled.Search, contentDescription = "Поиск")
                         }
+                        Box {
+                            IconButton(onClick = { filterMenuOpen = true }) {
+                                Icon(
+                                    Icons.Filled.FilterList,
+                                    contentDescription = "Фильтр",
+                                    tint = if (docFilter != DocQuantityFilter.ALL) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                )
+                            }
+                            DropdownMenu(expanded = filterMenuOpen, onDismissRequest = { filterMenuOpen = false }) {
+                                DropdownMenuItem(text = { Text("Все") }, onClick = { docFilter = DocQuantityFilter.ALL; filterMenuOpen = false })
+                                DropdownMenuItem(text = { Text("Остаток") }, onClick = { docFilter = DocQuantityFilter.IN_STOCK; filterMenuOpen = false })
+                                DropdownMenuItem(text = { Text("Закончились") }, onClick = { docFilter = DocQuantityFilter.EMPTY; filterMenuOpen = false })
+                                DropdownMenuItem(text = { Text("Менее") }, onClick = { docFilter = DocQuantityFilter.BELOW; filterMenuOpen = false })
+                                DropdownMenuItem(text = { Text("Более") }, onClick = { docFilter = DocQuantityFilter.MORE; filterMenuOpen = false })
+                            }
+                        }
                         IconButton(
                             onClick = { reordering = true },
-                            enabled = searchQuery.isBlank(),
+                            enabled = searchQuery.isBlank() && docFilter == DocQuantityFilter.ALL,
                             modifier = Modifier.tutorialAnchor("doc_reorder"),
                         ) {
                             Icon(Icons.Filled.DragHandle, contentDescription = "Изменить порядок")
@@ -147,6 +182,33 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                     }
                 }
             }
+            if (docFilter == DocQuantityFilter.BELOW || docFilter == DocQuantityFilter.MORE) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = thresholdText,
+                        onValueChange = { thresholdText = it.filter(Char::isDigit).take(6) },
+                        modifier = Modifier.weight(1f),
+                        label = {
+                            Text(
+                                if (docFilter == DocQuantityFilter.BELOW)
+                                    "Показывать документы, где количество менее"
+                                else
+                                    "Показывать документы, где количество более"
+                            )
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    IconButton(onClick = { docFilter = DocQuantityFilter.ALL }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Сбросить фильтр")
+                    }
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,7 +220,7 @@ fun DocumentsScreen(nav: NavController, vm: DocumentsViewModel = viewModel()) {
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            if (searchQuery.isBlank()) "Нет документов.\nНажмите «+», чтобы создать."
+                            if (searchQuery.isBlank() && docFilter == DocQuantityFilter.ALL) "Нет документов.\nНажмите «+», чтобы создать."
                             else "Ничего не найдено.",
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )

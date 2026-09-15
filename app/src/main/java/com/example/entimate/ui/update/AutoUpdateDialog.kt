@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,11 +30,15 @@ import com.example.entimate.EntimateApplication
 import com.example.entimate.data.update.AppUpdater
 import com.example.entimate.data.update.UpdateChecker
 import com.example.entimate.data.update.UpdateInfo
+import com.example.entimate.ui.settings.CreateBackupDocument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private sealed interface AutoUpdateState {
     data object Idle : AutoUpdateState
@@ -49,6 +54,18 @@ fun AutoUpdateDialog() {
     val app = context.applicationContext as EntimateApplication
     var state by remember { mutableStateOf<AutoUpdateState>(AutoUpdateState.Checking) }
     val scope = rememberCoroutineScope()
+    var backupStatus by remember { mutableStateOf("") }
+    val backupLauncher = rememberLauncherForActivityResult(CreateBackupDocument()) { uri ->
+        if (uri != null) scope.launch {
+            try {
+                val json = withContext(Dispatchers.IO) { app.backupRepository.exportJson() }
+                context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                backupStatus = "Резервная копия сохранена"
+            } catch (e: Exception) {
+                backupStatus = "Ошибка резервной копии: ${e.message}"
+            }
+        }
+    }
 
     val installPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -129,13 +146,24 @@ fun AutoUpdateDialog() {
             onDismissRequest = { state = AutoUpdateState.Idle },
             title = { Text("Обновление загружено") },
             text = {
-                Text(
-                    if (AppUpdater.canRequestInstalls(context)) {
-                        "Новая версия скачана. Нажмите «Установить», чтобы обновить приложение."
-                    } else {
-                        "Разрешите установку приложений из неизвестных источников, вернитесь и нажмите «Установить»."
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        if (AppUpdater.canRequestInstalls(context)) {
+                            "Новая версия скачана. Перед установкой можно сделать резервную копию данных."
+                        } else {
+                            "Разрешите установку приложений из неизвестных источников, вернитесь и нажмите «Установить»."
+                        }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        val ts = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.getDefault()).format(Date())
+                        backupLauncher.launch("ENTimate-backup-$ts.json")
+                    }) { Text("Сделать резервную копию") }
+                    if (backupStatus.isNotBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(backupStatus, color = MaterialTheme.colorScheme.primary)
                     }
-                )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {

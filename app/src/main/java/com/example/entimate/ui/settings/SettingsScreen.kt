@@ -47,6 +47,7 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
     var pendingUpdate by remember { mutableStateOf<String?>(null) }
+    var updateBackupStatus by remember { mutableStateOf("") }
 
     val installPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -89,8 +90,10 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
                 val json = backup.exportJson()
                 context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                 status = "Резервная копия сохранена"
+                updateBackupStatus = "Резервная копия сохранена"
             } catch (e: Exception) {
                 status = "Ошибка экспорта: ${e.message}"
+                updateBackupStatus = "Ошибка экспорта: ${e.message}"
             }
         }
     }
@@ -312,13 +315,24 @@ fun SettingsScreen(nav: NavController, vm: SettingsViewModel = viewModel()) {
             onDismissRequest = { updateState = UpdateUiState.Idle },
             title = { Text("Обновление загружено") },
             text = {
-                Text(
-                    if (AppUpdater.canRequestInstalls(context)) {
-                        "Новая версия скачана. Нажмите «Установить», чтобы обновить приложение."
-                    } else {
-                        "Разрешите установку приложений из неизвестных источников, вернитесь и нажмите «Установить»."
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        if (AppUpdater.canRequestInstalls(context)) {
+                            "Новая версия скачана. Перед установкой можно сделать резервную копию данных."
+                        } else {
+                            "Разрешите установку приложений из неизвестных источников, вернитесь и нажмите «Установить»."
+                        }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        val ts = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.getDefault()).format(Date())
+                        exportLauncher.launch("ENTimate-backup-$ts.json")
+                    }) { Text("Сделать резервную копию") }
+                    if (updateBackupStatus.isNotBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(updateBackupStatus, color = MaterialTheme.colorScheme.primary)
                     }
-                )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -346,7 +360,7 @@ private sealed interface UpdateUiState {
     data class Ready(val file: File) : UpdateUiState
 }
 
-private class CreateBackupDocument : ActivityResultContract<String, Uri?>() {
+class CreateBackupDocument : ActivityResultContract<String, Uri?>() {
     override fun createIntent(context: Context, input: String): Intent =
         Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
