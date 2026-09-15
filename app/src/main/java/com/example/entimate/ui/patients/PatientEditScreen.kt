@@ -229,7 +229,7 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
                 Spacer(Modifier.height(8.dp))
             }
             PATIENT_FIELDS.filter { it.key !in COLLAPSED_BY_DEFAULT }.forEach { def ->
-                FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it }, if (def.key == "birthDate") birthMaxDate else null, if (def.key == "admissionDate") todayStart else null, def.key == lastFieldKey)
+                FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it }, when (def.key) { "birthDate" -> birthMaxDate; "admissionDate" -> todayStart; else -> null }, null, def.key == lastFieldKey)
                 Spacer(Modifier.height(10.dp))
             }
 
@@ -246,7 +246,7 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
             if (expandedMore) {
                 Spacer(Modifier.height(8.dp))
                 PATIENT_FIELDS.filter { it.key in COLLAPSED_BY_DEFAULT }.forEach { def ->
-                    FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it }, if (def.key == "birthDate") birthMaxDate else null, if (def.key == "admissionDate") todayStart else null, def.key == lastFieldKey)
+                    FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it }, when (def.key) { "birthDate" -> birthMaxDate; "admissionDate" -> todayStart; else -> null }, null, def.key == lastFieldKey)
                     Spacer(Modifier.height(10.dp))
                 }
             }
@@ -308,7 +308,7 @@ fun fieldOptions(def: PatientFieldDef): List<String> = when (def.key) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValueChange: (String) -> Unit, maxBirthDate: Long? = null, minDate: Long? = null, isLast: Boolean = false) {
+fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValueChange: (String) -> Unit, maxDate: Long? = null, minDate: Long? = null, isLast: Boolean = false) {
     val required = def.required
     val error = showErrors && required && value.isBlank()
     val focusManager = LocalFocusManager.current
@@ -334,7 +334,7 @@ fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValu
                 value = value,
                 onValueChange = onValueChange,
                 label = def.label + if (required) " *" else "",
-                maxDate = maxBirthDate,
+                maxDate = maxDate,
                 minDate = minDate,
             )
         }
