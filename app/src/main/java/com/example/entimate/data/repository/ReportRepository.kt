@@ -169,6 +169,8 @@ class ReportRepository(
         return when (operator) {
             "EQ" -> value.normalKey() == target.normalKey()
             "CONTAINS" -> value.normalKey().contains(target.normalKey())
+            "NE" -> value.normalKey() != target.normalKey()
+            "NOT_CONTAINS" -> !value.normalKey().contains(target.normalKey())
             "GT" -> (value.toDoubleOrNull() ?: Double.MIN_VALUE) > (target.toDoubleOrNull() ?: 0.0)
             "LT" -> (value.toDoubleOrNull() ?: Double.MAX_VALUE) < (target.toDoubleOrNull() ?: 0.0)
             "GTE" -> (value.toDoubleOrNull() ?: Double.MIN_VALUE) >= (target.toDoubleOrNull() ?: 0.0)

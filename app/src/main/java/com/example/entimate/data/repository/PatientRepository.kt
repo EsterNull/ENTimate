@@ -16,6 +16,9 @@ import java.util.Locale
 
 fun todayIso(): String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
+private fun clampToToday(date: String): String =
+    if (date.isBlank() || date > todayIso()) todayIso() else date
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class PatientRepository(
     private val db: AppDatabase,
@@ -59,11 +62,15 @@ class PatientRepository(
         } else {
             patient
         }
-        val id = if (toSave.id == 0L) {
-            patientDao.insertPatient(toSave)
+        val toSaveClamped = toSave.copy(
+            admissionDate = clampToToday(toSave.admissionDate),
+            illnessStart = clampToToday(toSave.illnessStart),
+        )
+        val id = if (toSaveClamped.id == 0L) {
+            patientDao.insertPatient(toSaveClamped)
         } else {
-            patientDao.updatePatient(toSave)
-            toSave.id
+            patientDao.updatePatient(toSaveClamped)
+            toSaveClamped.id
         }
         patientDao.deleteCustomValues(id)
         customValues.forEach { (fid, value) ->
@@ -89,15 +96,16 @@ class PatientRepository(
         folderRepo.refresh()
     }
 
-    suspend fun reregisterPatient(old: PatientEntity, admissionDate: String, newNumber: Int? = null): Long = db.withTransaction {
+    suspend fun reregisterPatient(old: PatientEntity, admissionDate: String, newNumber: Int? = null, diagnosis: String = ""): Long = db.withTransaction {
         patientDao.updatePatient(old.copy(discharged = 1, dischargeDate = todayIso()))
         val fresh = old.copy(
             id = 0,
             folderId = old.folderId,
             number = newNumber ?: old.number,
-            admissionDate = admissionDate,
-            illnessStart = admissionDate,
+            admissionDate = clampToToday(admissionDate),
+            illnessStart = clampToToday(admissionDate),
             referredBy = "",
+            diagnosis = diagnosis,
             discharged = 0,
             dischargeDate = "",
             createdAt = System.currentTimeMillis(),

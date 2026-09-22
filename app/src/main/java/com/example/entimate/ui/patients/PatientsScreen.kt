@@ -127,12 +127,13 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
         val todayIso = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
         var reDate by remember(pendingReregister) { mutableStateOf(todayIso) }
         var reNumber by remember(pendingReregister) { mutableStateOf("") }
+        var reDiagnosis by remember(pendingReregister) { mutableStateOf(pendingReregister?.patient?.diagnosis ?: "") }
         AlertDialog(
             onDismissRequest = { pendingReregister = null },
             title = { Text("Переоформление") },
             text = {
                 Column {
-                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме номера, даты поступления, начала заболевания/травмы (приравнивается к дате поступления), поля «Кем направлен больной» (очищается) и пользовательских полей (не заполняются).")
+                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме номера, даты поступления, начала заболевания/травмы (приравнивается к дате поступления), поля «Кем направлен больной» (очищается), диагноза (принимает указанное ниже значение) и пользовательских полей (не заполняются).")
                     Spacer(Modifier.height(12.dp))
                     DateField(
                         value = reDate,
@@ -149,6 +150,14 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = reDiagnosis,
+                        onValueChange = { v -> reDiagnosis = v.replace("\n", "").replace("\r", "") },
+                        label = { Text("Диагноз") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             },
             confirmButton = {
@@ -156,7 +165,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                     enabled = reDate.isNotBlank(),
                     onClick = {
                         val newNumber = reNumber.toIntOrNull()
-                        vm.reregisterPatient(pendingReregister!!.patient, reDate, newNumber)
+                        vm.reregisterPatient(pendingReregister!!.patient, reDate, newNumber, reDiagnosis.trim())
                         pendingReregister = null
                     },
                 ) { Text("Переоформить") }

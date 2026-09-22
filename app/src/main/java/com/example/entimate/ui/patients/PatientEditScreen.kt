@@ -106,6 +106,9 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
                         else -> patientValue(pw.patient, def.key)
                     }
                 }
+                if (pw.patient.discharged == 1) {
+                    values["dischargeDate"] = pw.patient.dischargeDate
+                }
                 pw.customValues.forEach { cv -> customValues[cv.fieldId] = cv.value }
             }
             loaded = true
@@ -189,7 +192,7 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
             sortOrder = existingPatient?.sortOrder ?: 0,
             folderId = existingPatient?.folderId ?: 0,
             discharged = existingPatient?.discharged ?: 0,
-            dischargeDate = existingPatient?.dischargeDate ?: "",
+            dischargeDate = values["dischargeDate"] ?: existingPatient?.dischargeDate ?: "",
             version = existingPatient?.version ?: CURRENT_DATA_VERSION,
         )
         scope.launch {
@@ -230,6 +233,16 @@ fun PatientEditScreen(patientId: Long, templateId: Long = 0L, nav: NavController
             }
             PATIENT_FIELDS.filter { it.key !in COLLAPSED_BY_DEFAULT }.forEach { def ->
                 FieldEditor(def, values[def.key] ?: "", showErrors, { values[def.key] = it }, when (def.key) { "birthDate" -> birthMaxDate; "admissionDate" -> todayStart; else -> null }, null, def.key == lastFieldKey)
+                Spacer(Modifier.height(10.dp))
+            }
+
+            if (existingPatient?.discharged == 1) {
+                DateField(
+                    value = values["dischargeDate"] ?: "",
+                    onValueChange = { values["dischargeDate"] = it },
+                    label = "Дата выписки",
+                    maxDate = todayStart,
+                )
                 Spacer(Modifier.height(10.dp))
             }
 
