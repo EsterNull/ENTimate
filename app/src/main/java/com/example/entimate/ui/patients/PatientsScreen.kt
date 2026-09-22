@@ -127,7 +127,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
         val todayIso = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
         var reDate by remember(pendingReregister) { mutableStateOf(todayIso) }
         var reNumber by remember(pendingReregister) { mutableStateOf("") }
-        var reDiagnosis by remember(pendingReregister) { mutableStateOf(pendingReregister?.patient?.diagnosis ?: "") }
+        var reDiagnosis by remember(pendingReregister) { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { pendingReregister = null },
             title = { Text("Переоформление") },
@@ -154,7 +154,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                     OutlinedTextField(
                         value = reDiagnosis,
                         onValueChange = { v -> reDiagnosis = v.replace("\n", "").replace("\r", "") },
-                        label = { Text("Диагноз") },
+                        label = { Text("Диагноз (необязательно)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )

@@ -400,6 +400,7 @@ fun TableReportEditor(reportId: Long, nav: NavController, kind: String = "TABLE"
                         label = fo?.label ?: patientFieldByKey(f.fieldKey)?.label ?: f.fieldKey,
                         options = fo?.let { optList(it) } ?: emptyList(),
                         onConnectorChange = { c -> filters[idx] = filters[idx].copy(connector = c) },
+                        onOperatorChange = { op -> filters[idx] = filters[idx].copy(operator = op) },
                         onValueChange = { v -> filters[idx] = filters[idx].copy(value = v) },
                         onDelete = { filters.removeAt(idx) },
                         isLast = idx == filters.lastIndex,
@@ -464,6 +465,7 @@ private fun FilterRow(
     label: String,
     options: List<String>,
     onConnectorChange: (String) -> Unit,
+    onOperatorChange: (String) -> Unit,
     onValueChange: (String) -> Unit,
     onDelete: () -> Unit,
     isLast: Boolean = false,
@@ -493,7 +495,7 @@ private fun FilterRow(
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(opExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
                 )
                 ExposedDropdownMenu(expanded = opExpanded, onDismissRequest = { opExpanded = false }) {
-                    ops.forEach { o -> DropdownMenuItem(text = { Text(o.second) }, onClick = { operator = o.first; opExpanded = false }) }
+                    ops.forEach { o -> DropdownMenuItem(text = { Text(o.second) }, onClick = { onOperatorChange(o.first); operator = o.first; opExpanded = false }) }
                 }
             }
             Spacer(Modifier.height(6.dp))
