@@ -96,12 +96,12 @@ class PatientRepository(
         folderRepo.refresh()
     }
 
-    suspend fun reregisterPatient(old: PatientEntity, admissionDate: String, newNumber: Int? = null, diagnosis: String = ""): Long = db.withTransaction {
+    suspend fun reregisterPatient(old: PatientEntity, admissionDate: String, newNumber: Int? = null, diagnosis: String = "", customValues: Map<Long, String> = emptyMap()): Long = db.withTransaction {
         patientDao.updatePatient(old.copy(discharged = 1, dischargeDate = todayIso()))
         val fresh = old.copy(
             id = 0,
             folderId = old.folderId,
-            number = newNumber ?: old.number,
+            number = newNumber ?: 0,
             admissionDate = clampToToday(admissionDate),
             illnessStart = clampToToday(admissionDate),
             referredBy = "",
@@ -113,6 +113,12 @@ class PatientRepository(
             version = CURRENT_DATA_VERSION,
         )
         val id = patientDao.insertPatient(fresh)
+        patientDao.deleteCustomValues(id)
+        customValues.forEach { (fid, value) ->
+            if (value.isNotBlank()) {
+                patientDao.insertCustomValue(PatientCustomValueEntity(patientId = id, fieldId = fid, value = value))
+            }
+        }
         syncEffects(id, recordStats = true)
         folderRepo.refresh()
         id

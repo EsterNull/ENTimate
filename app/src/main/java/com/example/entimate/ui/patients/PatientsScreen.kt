@@ -55,6 +55,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
     val settingsVm: SettingsViewModel = viewModel()
     val settings by settingsVm.settings.collectAsStateWithLifecycle()
     val customFields by vm.customFields.collectAsStateWithLifecycle()
+    val documents by vm.documents.collectAsStateWithLifecycle()
     val activePatients = patients.filter { it.patient.discharged != 1 }
     val dischargedPatients = patients.filter { it.patient.discharged == 1 }
     val visiblePatients = if (settings.showDischarged) activePatients + dischargedPatients else activePatients
@@ -128,12 +129,17 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
         var reDate by remember(pendingReregister) { mutableStateOf(todayIso) }
         var reNumber by remember(pendingReregister) { mutableStateOf("") }
         var reDiagnosis by remember(pendingReregister) { mutableStateOf("") }
+        val reCustom = remember(pendingReregister, customFields) {
+            mutableStateMapOf<Long, String>().apply {
+                customFields.forEach { cf -> if (cf.defaultValue.isNotBlank()) put(cf.id, cf.defaultValue) }
+            }
+        }
         AlertDialog(
             onDismissRequest = { pendingReregister = null },
             title = { Text("Переоформление") },
             text = {
-                Column {
-                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме номера, даты поступления, начала заболевания/травмы (приравнивается к дате поступления), поля «Кем направлен больной» (очищается), диагноза (принимает указанное ниже значение) и пользовательских полей (не заполняются).")
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Переоформить пациента «${pendingReregister!!.patient.lastName} ${pendingReregister!!.patient.firstName}»? Старая карточка будет отмечена как выписанная, а создана новая с той же информацией, кроме номера (очищается), даты поступления, начала заболевания/травмы (приравнивается к дате поступления), поля «Кем направлен больной» (очищается), диагноза (принимает указанное ниже значение) и пользовательских полей (принимают значения по умолчанию, при необходимости их можно изменить).")
                     Spacer(Modifier.height(12.dp))
                     DateField(
                         value = reDate,
@@ -158,6 +164,23 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    if (customFields.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text("Пользовательские поля", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        customFields.forEach { cf ->
+                            CustomFieldEditor(
+                                cf = cf,
+                                value = reCustom[cf.id] ?: "",
+                                onValueChange = { v -> reCustom[cf.id] = v },
+                                documents = documents,
+                                customFields = customFields,
+                                customValues = reCustom,
+                                patientNumber = reNumber,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -165,7 +188,7 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                     enabled = reDate.isNotBlank(),
                     onClick = {
                         val newNumber = reNumber.toIntOrNull()
-                        vm.reregisterPatient(pendingReregister!!.patient, reDate, newNumber, reDiagnosis.trim())
+                        vm.reregisterPatient(pendingReregister!!.patient, reDate, newNumber, reDiagnosis.trim(), reCustom.toMap())
                         pendingReregister = null
                     },
                 ) { Text("Переоформить") }

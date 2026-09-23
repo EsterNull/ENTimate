@@ -42,8 +42,8 @@ class PatientsViewModel(application: Application) : AndroidViewModel(application
 
     fun dischargePatient(patient: PatientEntity) = viewModelScope.launch { repo.dischargePatient(patient) }
 
-    fun reregisterPatient(patient: PatientEntity, admissionDate: String, newNumber: Int? = null, diagnosis: String = "") =
-        viewModelScope.launch { repo.reregisterPatient(patient, admissionDate, newNumber, diagnosis) }
+    fun reregisterPatient(patient: PatientEntity, admissionDate: String, newNumber: Int? = null, diagnosis: String = "", customValues: Map<Long, String> = emptyMap()) =
+        viewModelScope.launch { repo.reregisterPatient(patient, admissionDate, newNumber, diagnosis, customValues) }
 
     fun saveCustomField(f: PatientCustomFieldEntity) = viewModelScope.launch { repo.saveCustomField(f) }
     fun deleteCustomField(f: PatientCustomFieldEntity) = viewModelScope.launch { repo.deleteCustomField(f) }
