@@ -134,7 +134,10 @@ class PatientRepository(
     suspend fun deleteCustomField(f: PatientCustomFieldEntity) = db.withTransaction {
         patientDao.deleteValuesForField(f.id)
         patientDao.deleteCustomField(f)
-        recomputeAllEffects()
+        val all = patientDao.getAllPatientsWithValues()
+        all.forEach { p ->
+            syncEffects(p.patient.id)
+        }
     }
 
     suspend fun reorderFields(orderedIds: List<Long>) = db.withTransaction {

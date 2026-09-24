@@ -154,6 +154,21 @@ fun AddCustomFieldDialog(
                     if (formula.isBlank()) {
                         Text("Введите формулу — поле обязательно.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                     }
+                } else if (type == "DATE") {
+                    DateField(
+                        value = default,
+                        onValueChange = { default = it },
+                        label = "Значение по умолчанию",
+                    )
+                } else if (type == "CHECKBOX") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = default == "true",
+                            onCheckedChange = { checked -> default = if (checked) "true" else "false" },
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("По умолчанию отмечен", style = MaterialTheme.typography.bodyLarge)
+                    }
                 } else {
                     OutlinedTextField(value = default, onValueChange = { default = it.stripNewlines() }, label = { Text("Значение по умолчанию") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = TextKeyboardOptions)
                 }
@@ -164,7 +179,11 @@ fun AddCustomFieldDialog(
                 if (label.isNotBlank()) {
                     if (type == "DROPDOWN" && optionList.isEmpty()) return@TextButton
                     if (type == "COMPUTED" && formula.isBlank()) return@TextButton
-                    onConfirm(label.trim(), type, options.trim(), default.trim(), formula.trim())
+                    val def = when (type) {
+                        "CHECKBOX" -> if (default == "true") "true" else ""
+                        else -> default.trim()
+                    }
+                    onConfirm(label.trim(), type, options.trim(), def, formula.trim())
                 }
             }) { Text("Сохранить") }
         },

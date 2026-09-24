@@ -142,8 +142,9 @@ fun CustomFieldsScreen(nav: NavController) {
             text = { Text("Поле «${pendingDelete!!.label}» и его значения у всех пациентов будут удалены безвозвратно.") },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { repo.deleteCustomField(pendingDelete!!) }
+                    val target = pendingDelete
                     pendingDelete = null
+                    if (target != null) scope.launch { repo.deleteCustomField(target) }
                 }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Отмена") } },
@@ -186,7 +187,15 @@ private fun CustomFieldCard(
             if (cf.type == "COMPUTED") {
                 Text("Формула: ${cf.formula.ifBlank { "—" }}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
-            if (cf.defaultValue.isNotBlank()) {
+            if (cf.type == "CHECKBOX") {
+                if (cf.defaultValue.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = cf.defaultValue == "true", onCheckedChange = null, enabled = false)
+                        Spacer(Modifier.width(8.dp))
+                        Text("По умолчанию отмечен", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+            } else if (cf.defaultValue.isNotBlank()) {
                 Text("По умолчанию: ${cf.defaultValue}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
             Spacer(Modifier.height(6.dp))

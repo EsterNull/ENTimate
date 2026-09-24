@@ -39,7 +39,7 @@ fun TemplatesScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
                     IconButton(onClick = { nav.navigateBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
                 },
                 actions = {
-                    IconButton(onClick = { nav.navigate("templates/edit") }) {
+                    IconButton(onClick = { nav.navigate("templates/edit/0") }) {
                         Icon(Icons.Filled.Add, contentDescription = "Добавить шаблон")
                     }
                 },
