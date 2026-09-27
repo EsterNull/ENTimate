@@ -27,8 +27,12 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
         repo.delete(doc)
     }
 
-    fun reorder(from: Int, to: Int) = viewModelScope.launch {
-        repo.reorder(from, to)
+    fun reorder(from: Int, to: Int) {
+        val ids = documents.value.map { it.id }.toMutableList()
+        if (from !in ids.indices || to !in ids.indices) return
+        val id = ids.removeAt(from)
+        ids.add(to, id)
+        viewModelScope.launch { repo.assignOrders(ids) }
     }
 
     fun adjust(docId: Long, sign: Int) {

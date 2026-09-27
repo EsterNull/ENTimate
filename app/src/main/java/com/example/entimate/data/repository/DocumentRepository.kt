@@ -50,6 +50,7 @@ class DocumentRepository(
     }
     suspend fun assignOrders(orderedIds: List<Long>) = db.withTransaction {
         orderedIds.forEachIndexed { index, orderedId -> dao.setOrder(orderedId, index) }
+        android.util.Log.d("ENT", "assignOrders documents: " + orderedIds.joinToString())
     }
     @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun adjust(docId: Long, sign: Int) {

@@ -135,9 +135,10 @@ class ReportRepository(
         if (from !in ids.indices || to !in ids.indices) return
         val id = ids.removeAt(from)
         ids.add(to, id)
-        db.withTransaction {
-            ids.forEachIndexed { index, orderedId -> reportDao.setSortOrder(orderedId, index) }
-        }
+        assignOrders(ids)
+    }
+    suspend fun assignOrders(orderedIds: List<Long>) = db.withTransaction {
+        orderedIds.forEachIndexed { index, orderedId -> reportDao.setSortOrder(orderedId, index) }
     }
     suspend fun patientCustomFields(folderId: Long) = patientDao.getAllCustomFields(folderId)
     suspend fun getEarliestPatientTime(folderId: Long): Long? = patientDao.getEarliestCreatedAt(folderId)
