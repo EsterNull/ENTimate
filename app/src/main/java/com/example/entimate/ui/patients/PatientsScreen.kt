@@ -44,6 +44,21 @@ import com.example.entimate.ui.folders.FolderBarHeight
 import com.example.entimate.viewmodel.PatientsViewModel
 import com.example.entimate.viewmodel.SettingsViewModel
 import com.example.entimate.util.normalKey
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -195,16 +210,6 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
             },
             dismissButton = { TextButton(onClick = { pendingReregister = null }) { Text("Отмена") } },
         )
-    }
-
-    if (dossierPatient != null) {
-        ModalBottomSheet(onDismissRequest = { dossierPatient = null }) {
-            PatientDossierSheet(
-                pw = dossierPatient!!,
-                dateFormat = settings.dateFormat,
-                customFields = customFields,
-            )
-        }
     }
 
     Scaffold(
@@ -364,6 +369,15 @@ fun PatientsScreen(nav: NavController, vm: PatientsViewModel = viewModel()) {
             )
         }
     }
+
+    if (dossierPatient != null) {
+        PatientDossierSheet(
+            pw = dossierPatient!!,
+            dateFormat = settings.dateFormat,
+            customFields = customFields,
+            onDismiss = { dossierPatient = null },
+        )
+    }
 }
 }
 
@@ -450,13 +464,19 @@ private fun formatDischargeDate(iso: String, dateFormat: String): String = try {
 }
 
 @Composable
-private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, customFields: List<com.example.entimate.data.local.PatientCustomFieldEntity>) {
+private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, customFields: List<com.example.entimate.data.local.PatientCustomFieldEntity>, onDismiss: () -> Unit) {
     val p = pw.patient
     val fio = listOf(p.lastName, p.firstName, p.middleName).filter { it.isNotBlank() }.joinToString(" ")
     val dateKeys = setOf("birthDate", "serviceDate", "admissionDate", "illnessStart", "dischargeDate")
     val displayFmt = remember(dateFormat) { SimpleDateFormat(dateFormat, Locale.getDefault()) }
     val isoFmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
     val customMap = remember(pw.customValues) { pw.customValues.associateBy { it.fieldId } }
+
+    var visible by remember { mutableStateOf(true) }
+    var sheetHeight by remember { mutableIntStateOf(0) }
+    val drag = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val fallbackThreshold = with(LocalDensity.current) { 220.dp.toPx() }
 
     fun formatVal(key: String, raw: String): String {
         if (raw.isBlank()) return ""
@@ -467,41 +487,129 @@ private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, custo
         return raw
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+    fun dismiss() {
+        if (!visible) return
+        visible = false
+        scope.launch {
+            delay(300)
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = visible) { dismiss() }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.fillMaxSize(),
     ) {
-        if (fio.isNotBlank()) {
-            Text(fio, style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(4.dp))
-        }
-        val mainNumber = listOf(p.rank, categoryCode(p.category), p.unit).filter { it.isNotBlank() }.joinToString(" · ")
-        if (mainNumber.isNotBlank()) {
-            Text(mainNumber, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Spacer(Modifier.height(12.dp))
-        HorizontalDivider()
-        Spacer(Modifier.height(12.dp))
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .pointerInput(Unit) { detectTapGestures { dismiss() } },
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .onGloballyPositioned { sheetHeight = it.size.height }
+                    .offset { IntOffset(0, drag.value.roundToInt()) }
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .background(MaterialTheme.colorScheme.surface),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragEnd = {
+                                    val threshold = if (sheetHeight > 0) sheetHeight * 0.25f else fallbackThreshold
+                                    scope.launch {
+                                        if (drag.value > threshold) {
+                                            dismiss()
+                                        } else {
+                                            drag.animateTo(0f, tween(150))
+                                        }
+                                    }
+                                },
+                                onVerticalDrag = { change, dragAmount ->
+                                    scope.launch { drag.snapTo((drag.value + dragAmount).coerceAtLeast(0f)) }
+                                    change.consume()
+                                },
+                            )
+                        },
+                ) {
+                    Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier
+                                .width(44.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MaterialTheme.colorScheme.outlineVariant),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (fio.isNotBlank()) {
+                        Text(fio, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp))
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    val mainNumber = listOf(p.rank, categoryCode(p.category), p.unit).filter { it.isNotBlank() }.joinToString(" · ")
+                    if (mainNumber.isNotBlank()) {
+                        Text(mainNumber, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 24.dp))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+                HorizontalDivider()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .navigationBarsPadding()
+                        .padding(bottom = 32.dp),
+                ) {
+                    Spacer(Modifier.height(4.dp))
+                    PATIENT_FIELDS.forEach { def ->
+                        val raw = patientValue(p, def.key)
+                        val display = formatVal(def.key, raw)
+                        DossierRow(label = def.label, value = display.ifBlank { "—" })
+                    }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp),
-        ) {
-            PATIENT_FIELDS.forEach { def ->
-                val raw = patientValue(p, def.key)
-                val display = formatVal(def.key, raw)
-                DossierRow(label = def.label, value = display.ifBlank { "—" })
+                    customFields.forEach { cf ->
+                        val raw = customMap[cf.id]?.value ?: ""
+                        if (cf.type == "CHECKBOX") {
+                            DossierCheckboxRow(label = cf.label, checked = raw == "true")
+                        } else {
+                            val display = if (cf.type == "DATE" && raw.isNotBlank()) {
+                                try { isoFmt.parse(raw)?.let { displayFmt.format(it) } ?: raw } catch (_: Exception) { raw }
+                            } else {
+                                raw
+                            }
+                            DossierRow(label = cf.label, value = display.ifBlank { "—" })
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                }
             }
+        }
+    }
+}
 
-            customFields.forEach { cf ->
-                val raw = customMap[cf.id]?.value ?: ""
-                DossierRow(label = cf.label, value = raw.ifBlank { "—" })
-            }
-
-            Spacer(Modifier.height(16.dp))
+@Composable
+private fun DossierCheckboxRow(label: String, checked: Boolean) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = null,
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(if (checked) "Да" else "Нет", style = MaterialTheme.typography.bodyLarge)
         }
     }
 }

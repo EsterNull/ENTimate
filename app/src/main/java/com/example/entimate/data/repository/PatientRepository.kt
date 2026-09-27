@@ -119,7 +119,7 @@ class PatientRepository(
                 patientDao.insertCustomValue(PatientCustomValueEntity(patientId = id, fieldId = fid, value = value))
             }
         }
-        syncEffects(id, recordStats = true)
+        syncEffects(id, recordStats = true, announce = false)
         folderRepo.refresh()
         id
     }
@@ -138,7 +138,7 @@ class PatientRepository(
         all.forEach { p ->
             syncEffects(p.patient.id)
         }
-    }
+    }.also { folderRepo.refresh() }
 
     suspend fun reorderFields(orderedIds: List<Long>) = db.withTransaction {
         orderedIds.forEachIndexed { index, id -> patientDao.setFieldPosition(id, index) }
@@ -212,7 +212,7 @@ class PatientRepository(
         all.forEach { p ->
             syncEffects(p.patient.id)
         }
-    }
+    }.also { folderRepo.refresh() }
 
     suspend fun syncEffectRecords() = db.withTransaction {
         val all = patientDao.getAllPatientsWithValues()
@@ -232,7 +232,7 @@ class PatientRepository(
                 }
             }
         }
-    }
+    }.also { folderRepo.refresh() }
 
     /**
      * Only links belonging to the patient's folder may affect that patient —
@@ -259,7 +259,7 @@ class PatientRepository(
      * each document. When nothing relevant changed, nothing is applied and no statistics
      * entry is created.
      */
-    private suspend fun syncEffects(patientId: Long, recordStats: Boolean = false) {
+    private suspend fun syncEffects(patientId: Long, recordStats: Boolean = false, announce: Boolean = true) {
         val p = patientDao.getWithValues(patientId) ?: return
         val cvMap = resolveComputedValues(
             patientDao.getAllCustomFields(p.patient.folderId),
@@ -289,7 +289,9 @@ class PatientRepository(
                         )
                     )
                 }
-                effectLog.tryEmit("Связь «${d?.name ?: "#$docId"}»: ${if (delta > 0) "+" else ""}$delta")
+                if (announce) {
+                    effectLog.tryEmit("Связь «${d?.name ?: "#$docId"}»: ${if (delta > 0) "+" else ""}$delta")
+                }
                 Log.d("ENT", "syncEffects patient=$patientId doc=$docId delta=$delta")
             }
         }

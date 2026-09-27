@@ -161,5 +161,5 @@ class FormRepository(
                 documentDao.updateQuantity(doc.id, newQ)
             }
         }
-    }
+    }.also { folderRepo.refresh() }
 }
