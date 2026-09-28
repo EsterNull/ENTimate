@@ -504,7 +504,8 @@ private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, custo
         exit = fadeOut(),
         modifier = Modifier.fillMaxSize(),
     ) {
-        Box(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val sheetMaxHeight = maxHeight * 0.8f
             Box(
                 Modifier
                     .fillMaxSize()
@@ -515,6 +516,7 @@ private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, custo
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .heightIn(max = sheetMaxHeight)
                     .onGloballyPositioned { sheetHeight = it.size.height }
                     .offset { IntOffset(0, drag.value.roundToInt()) }
                     .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
@@ -568,7 +570,7 @@ private fun PatientDossierSheet(pw: PatientWithValues, dateFormat: String, custo
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                         .navigationBarsPadding()
-                        .padding(bottom = 32.dp),
+                        .padding(start = 24.dp, end = 24.dp, bottom = 32.dp),
                 ) {
                     Spacer(Modifier.height(4.dp))
                     PATIENT_FIELDS.forEach { def ->
