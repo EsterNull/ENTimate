@@ -16,15 +16,26 @@ import kotlinx.coroutines.launch
 class DocumentsViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = (application as EntimateApplication).documentRepository
 
-    val documents: StateFlow<List<DocumentEntity>> = repo.allDocumentsFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val localOrder = MutableStateFlow<List<Long>?>(null)
+
+    val documents: StateFlow<List<DocumentEntity>> =
+        combine(repo.allDocumentsFlow, localOrder) { docs, order ->
+            if (order == null) {
+                docs
+            } else {
+                val positions = order.withIndex().associate { (index, id) -> id to index }
+                docs.sortedBy { positions[it.id] ?: Int.MAX_VALUE }
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun save(doc: DocumentEntity) = viewModelScope.launch {
         if (doc.id == 0L) repo.insert(doc) else repo.update(doc)
+        localOrder.value = null
     }
 
     fun delete(doc: DocumentEntity) = viewModelScope.launch {
         repo.delete(doc)
+        localOrder.value = null
     }
 
     fun reorder(from: Int, to: Int) {
@@ -32,6 +43,7 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
         if (from !in ids.indices || to !in ids.indices) return
         val id = ids.removeAt(from)
         ids.add(to, id)
+        localOrder.value = ids
         viewModelScope.launch { repo.assignOrders(ids) }
     }
 
@@ -51,6 +63,7 @@ class DocumentsViewModel(application: Application) : AndroidViewModel(applicatio
     suspend fun duplicate(doc: DocumentEntity): Long {
         val copy = doc.copy(id = 0, name = "${doc.name} (копия)", sortOrder = 0)
         val newId = repo.insert(copy)
+        localOrder.value = null
         val others = repo.getAll()
             .filter { it.id != newId }
             .sortedWith(compareBy<DocumentEntity> { it.sortOrder }.thenBy { it.name })
