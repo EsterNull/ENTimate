@@ -34,8 +34,8 @@ android {
         applicationId = "com.example.entimate"
         minSdk = 23
         targetSdk = 37
-        versionCode = 34
-        versionName = "1.10.2"
+        versionCode = 35
+        versionName = "1.10.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
