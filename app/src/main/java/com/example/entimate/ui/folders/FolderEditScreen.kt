@@ -86,8 +86,9 @@ fun FolderEditScreen(folderId: Long, nav: NavController) {
                     { Text(if (name.isBlank()) "Введите название" else "Папка с таким названием уже есть") }
                 } else null,
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                trailingIcon = { Spacer(Modifier.width(64.dp)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 64.dp),
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
