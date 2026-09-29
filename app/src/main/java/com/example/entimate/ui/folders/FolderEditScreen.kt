@@ -87,6 +87,7 @@ fun FolderEditScreen(folderId: Long, nav: NavController) {
                 } else null,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
+                trailingIcon = { Spacer(Modifier.width(64.dp)) },
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(

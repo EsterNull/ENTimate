@@ -14,6 +14,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.entimate.data.local.*
+import com.example.entimate.ui.components.LongTextField
 import com.example.entimate.ui.navigation.navigateBack
 import com.example.entimate.viewmodel.PatientsViewModel
 import kotlinx.coroutines.launch
@@ -111,12 +112,11 @@ fun TemplateEditScreen(nav: NavController, templateId: Long = 0L, vm: PatientsVi
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()).imePadding(),
         ) {
-            OutlinedTextField(
+            LongTextField(
                 value = name,
                 onValueChange = { name = it; nameError = false },
-                label = { Text("Название шаблона") },
+                label = "Название шаблона",
                 isError = nameError,
-                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))

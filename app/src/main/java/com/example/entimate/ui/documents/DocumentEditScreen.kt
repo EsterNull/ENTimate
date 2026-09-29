@@ -33,6 +33,7 @@ import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.DocumentEntity
 import com.example.entimate.data.local.CURRENT_DATA_VERSION
 import com.example.entimate.ui.components.ColorRow
+import com.example.entimate.ui.components.LongTextField
 import com.example.entimate.ui.components.TextKeyboardOptions
 import kotlinx.coroutines.launch
 
@@ -137,12 +138,11 @@ fun DocumentEditScreen(docId: Long, nav: NavController) {
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()).imePadding(),
         ) {
-            OutlinedTextField(
+            LongTextField(
                 value = name,
                 onValueChange = { name = it.stripNewlines(); nameError = false },
-                label = { Text("Название") },
+                label = "Название",
                 isError = nameError,
-                singleLine = true,
                 keyboardOptions = TextKeyboardOptions,
                 modifier = Modifier.fillMaxWidth(),
             )

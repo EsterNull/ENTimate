@@ -26,6 +26,7 @@ import androidx.navigation.NavController
 import com.example.entimate.EntimateApplication
 import com.example.entimate.data.local.*
 import com.example.entimate.ui.components.DateField
+import com.example.entimate.ui.components.LongTextField
 import com.example.entimate.ui.components.TextKeyboardOptions
 import com.example.entimate.ui.components.TextKeyboardOptionsDone
 import com.example.entimate.ui.stripNewlines
@@ -331,15 +332,14 @@ fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValu
                 androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = if (isLast) ImeAction.Done else ImeAction.Next)
             else
                 if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions
-            OutlinedTextField(
+            LongTextField(
                 value = value,
                 onValueChange = { onValueChange(it.replace("\n", "").replace("\r", "")) },
-                label = { Text(def.label + if (required) " *" else "") },
+                label = def.label + if (required) " *" else "",
                 isError = error,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
                 keyboardOptions = kb,
                 keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
         "DATE" -> {
@@ -403,7 +403,7 @@ fun FieldEditor(def: PatientFieldDef, value: String, showErrors: Boolean, onValu
             }
         }
         else -> {
-            OutlinedTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = { Text(def.label) }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions, keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions())
+            LongTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = def.label, modifier = Modifier.fillMaxWidth(), keyboardOptions = if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions, keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions())
         }
     }
 }
@@ -433,9 +433,8 @@ fun CustomFieldEditor(
             Spacer(Modifier.height(6.dp))
             val focusManager = LocalFocusManager.current
             when (cf.type) {
-                "TEXT", "NUMBER" -> OutlinedTextField(
-                    value = value, onValueChange = { onValueChange(it.replace("\n", "").replace("\r", "")) }, label = { Text("Значение") }, modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
+                "TEXT", "NUMBER" -> LongTextField(
+                    value = value, onValueChange = { onValueChange(it.replace("\n", "").replace("\r", "")) }, label = "Значение", modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = if (cf.type == "NUMBER") androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = if (isLast) ImeAction.Done else ImeAction.Next) else (if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions),
                     keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions(),
                 )
@@ -477,7 +476,7 @@ fun CustomFieldEditor(
                     customValues = customValues,
                     patientNumber = patientNumber,
                 )
-                else -> OutlinedTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = { Text("Значение") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions, keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions())
+                else -> LongTextField(value = value, onValueChange = { onValueChange(it.stripNewlines()) }, label = "Значение", modifier = Modifier.fillMaxWidth(), keyboardOptions = if (isLast) TextKeyboardOptionsDone else TextKeyboardOptions, keyboardActions = if (isLast) KeyboardActions(onDone = { focusManager.clearFocus() }) else KeyboardActions())
             }
         }
     }

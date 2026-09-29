@@ -35,6 +35,7 @@ import com.example.entimate.data.repository.parseDropdownMap
 import com.example.entimate.data.repository.serializeDropdownMap
 import com.example.entimate.data.repository.DROPDOWN_EMPTY_MARKER
 import com.example.entimate.ui.components.ColorRow
+import com.example.entimate.ui.components.LongTextField
 import com.example.entimate.ui.components.TextKeyboardOptions
 import com.example.entimate.ui.components.TextKeyboardOptionsDone
 import com.example.entimate.ui.stripNewlines
@@ -227,7 +228,7 @@ fun TableReportEditor(reportId: Long, nav: NavController, kind: String = "TABLE"
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).imePadding(),
         ) {
             item {
-                OutlinedTextField(value = name, onValueChange = { name = it.stripNewlines(); nameError = false }, label = { Text("Название") }, isError = nameError, singleLine = true, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth())
+                LongTextField(value = name, onValueChange = { name = it.stripNewlines(); nameError = false }, label = "Название", isError = nameError, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth())
                 if (nameError) Text("Укажите название и оно не должно повторяться.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(value = description, onValueChange = { description = it.stripNewlines() }, label = { Text("Описание") }, keyboardOptions = TextKeyboardOptions, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp), maxLines = 4)
